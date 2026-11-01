@@ -8,7 +8,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * How long a cached rating stays fresh, the same rule as StreamRatings' cache_policy.js: newer titles' ratings move
+ * How long a cached rating stays fresh: newer titles' ratings move
  * faster, so they are asked for again sooner.
  *
  * <pre>

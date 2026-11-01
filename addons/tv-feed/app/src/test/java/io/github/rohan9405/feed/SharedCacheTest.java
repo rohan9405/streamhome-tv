@@ -7,8 +7,17 @@ import static org.junit.Assert.fail;
 
 import org.junit.Test;
 
-/** Answers in the StreamRatings shared cache's format (GET /v1/rating). */
+/** Answers in the optional rating cache's format (GET /v1/rating), and the year check on direct lookups. */
 public class SharedCacheTest {
+    @Test
+    public void aTitleOfTheSameNameFromAnotherYearIsNotThisOne() {
+        assertTrue(Omdb.sameYear("2026", "2026"));
+        assertTrue(Omdb.sameYear("2026", "2025"));
+        assertTrue(Omdb.sameYear("2019", "2019–2022"));
+        assertFalse(Omdb.sameYear("2026", "2010"));
+        assertFalse(Omdb.sameYear("2026", ""));
+    }
+
     @Test
     public void hitKeepsTheCachesTimestamp() throws Exception {
         Omdb.Entry e = Omdb.parseShared(200, "{\"data\":{\"found\":true,\"title\":\"Panchayat\",\"year\":\"2020–\","

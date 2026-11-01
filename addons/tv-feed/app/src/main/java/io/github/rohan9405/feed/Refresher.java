@@ -254,7 +254,7 @@ final class Refresher {
         }
         services.shutdown();
 
-        // Ratings (the StreamRatings cache), then the header's ranking, then art.
+        // Ratings (OMDb), then the header's ranking, then art.
         step(ctx, 70);
         Omdb omdb = new Omdb(ctx, RATING_BUDGET);
         Map<Item, String> unrated = new LinkedHashMap<>();

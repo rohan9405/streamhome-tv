@@ -8,7 +8,7 @@ import java.time.LocalDate;
 
 import org.junit.Test;
 
-/** The same cases as StreamRatings' cache_policy.js. */
+/** How long ratings stay fresh, by the title's age. */
 public class CachePolicyTest {
     private static final LocalDate NOW = LocalDate.of(2026, 10, 29);
 

@@ -1,16 +1,17 @@
 #!/usr/bin/env bash
 # The API keys the Feed add-on needs live on this Mac, never in the repo, and are sent to the TV over ADB, so nothing
 # is typed with the remote:
-#   omdb  OMDb key, for IMDb ratings (through the StreamRatings shared cache)
+#   omdb  OMDb key, for IMDb ratings
 #   tmdb  TMDB API Read Access Token, for the header's new releases and the top 10 of apps that publish none
 #   news  TheNewsAPI token (free at thenewsapi.com), for the Ambient News add-on's stories over the screensaver
+#   cache Optional: the address of a rating cache of your own in front of OMDb. Without one, the TV asks OMDb directly
 #
-# Usage: my-tv/api-keys.sh save omdb|tmdb|news        # paste it once (hidden); it is checked, then kept
+# Usage: my-tv/api-keys.sh save omdb|tmdb|news|cache  # paste it once (hidden); it is checked, then kept
 #        TV_HOST=<tv ip> my-tv/api-keys.sh send       # give every kept key to the add-on that uses it, on the TV
 #        my-tv/api-keys.sh send --emulator            # the same for the bravia_preview emulator
-#        my-tv/api-keys.sh forget omdb|tmdb|news      # delete one from this Mac
+#        my-tv/api-keys.sh forget omdb|tmdb|news|cache # delete one from this Mac
 #
-# Files: ~/.cleantv-private/omdb_key, tmdb_token and news_token (folder 700, files 600). The script never prints a
+# Files: ~/.cleantv-private/omdb_key, tmdb_token, news_token and rating_cache (folder 700, files 600). The script never prints a
 # key. The TV keeps its own copies inside each add-on's private storage, since the TV makes the lookups.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -23,13 +24,16 @@ file_for() {
     omdb) echo "$DIR/omdb_key" ;;
     tmdb) echo "$DIR/tmdb_token" ;;
     news) echo "$DIR/news_token" ;;
-    *) echo "Which key: omdb, tmdb or news" >&2; exit 2 ;;
+    cache) echo "$DIR/rating_cache" ;;
+    *) echo "Which key: omdb, tmdb, news or cache" >&2; exit 2 ;;
   esac
 }
 
 check() {
   local out
-  if [ "$1" = omdb ]; then
+  if [ "$1" = cache ]; then
+    return 0
+  elif [ "$1" = omdb ]; then
     out=$(curl -sS --max-time 10 --get "https://www.omdbapi.com/" --data-urlencode "apikey=$2" --data-urlencode "t=Panchayat" 2>/dev/null || true)
     case "$out" in *'"Response":"True"'*) return 0 ;; *'Invalid API key'*) echo "OMDb says this key is not valid." >&2; return 1 ;; esac
   elif [ "$1" = news ]; then
@@ -60,10 +64,11 @@ case "${1:-}" in
     EXTRAS=""
     [ -s "$DIR/omdb_key" ] && EXTRAS="$EXTRAS --es omdb_key $(tr -d '[:space:]' < "$DIR/omdb_key")"
     [ -s "$DIR/tmdb_token" ] && EXTRAS="$EXTRAS --es tmdb_token $(tr -d '[:space:]' < "$DIR/tmdb_token")"
+    [ -s "$DIR/rating_cache" ] && EXTRAS="$EXTRAS --es rating_cache $(tr -d '[:space:]' < "$DIR/rating_cache")"
     CMDS=()
     [ -n "$EXTRAS" ] && CMDS+=("am start -n $ACTIVITY$EXTRAS")
     [ -s "$DIR/news_token" ] && CMDS+=("am start -n $NEWS_ACTIVITY --es news_token $(tr -d '[:space:]' < "$DIR/news_token")")
-    [ ${#CMDS[@]} -gt 0 ] || { echo "No keys saved yet: run my-tv/api-keys.sh save omdb|tmdb|news first." >&2; exit 1; }
+    [ ${#CMDS[@]} -gt 0 ] || { echo "No keys saved yet: run my-tv/api-keys.sh save omdb|tmdb|news|cache first." >&2; exit 1; }
     for CMD in "${CMDS[@]}"; do
       if [ "${2:-}" = "--emulator" ]; then
         ADB=${ANDROID_HOME:-$HOME/.cleantv-toolchain/sdk}/platform-tools/adb
@@ -81,7 +86,7 @@ case "${1:-}" in
     echo "Deleted $F. The TV keeps its copy until the Feed add-on gets another." >&2
     ;;
   *)
-    echo "Usage: my-tv/api-keys.sh save omdb|tmdb|news | send [--emulator] | forget omdb|tmdb|news" >&2
+    echo "Usage: my-tv/api-keys.sh save omdb|tmdb|news|cache | send [--emulator] | forget omdb|tmdb|news|cache" >&2
     exit 2
     ;;
 esac

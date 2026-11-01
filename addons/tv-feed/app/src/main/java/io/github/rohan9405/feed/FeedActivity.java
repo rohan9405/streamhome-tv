@@ -207,6 +207,11 @@ public final class FeedActivity extends Activity {
             Omdb.setKey(this, k);
             setup = true;
         }
+        String cache = intent.getStringExtra("rating_cache");
+        if (cache != null) {
+            Omdb.setCacheUrl(this, cache);
+            setup = true;
+        }
         String t = intent.getStringExtra("tmdb_token");
         if (t != null) {
             Tmdb.setToken(this, t);

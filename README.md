@@ -197,7 +197,7 @@ Three places control different parts of the experience:
 ```text
 Streaming apps ── Watch Next / preview rows ──┐
 TMDB / JustWatch ── titles and artwork ───────┤
-StreamRatings / OMDb ── IMDb ratings ─────────┼── Feed add-on ── local provider ── Launcher
+OMDb / IMDb ── IMDb ratings ──────────────────┼── Feed add-on ── local provider ── Launcher
 INDmoney MCP ── portfolio / index snapshots ──┘                                  (offline)
 
 Google News / TheNewsAPI ── Ambient News add-on ── overlays during Google Ambient
@@ -329,7 +329,7 @@ Undo at any point: `tools/switch-home.sh stock`, `my-tv/restore.sh`. Device quir
 
 ## Privacy and permissions
 
-Your own sign-in and keys stay in private app storage and the local setup directory (`~/.cleantv-private`), outside this repository. One exception to know about: rating lookups go first to the [StreamRatings shared cache](https://github.com/rohan9405/StreamRatings/tree/main/worker), a Cloudflare Worker run by this project's author. It receives the title, year and your OMDb key, uses the key to ask OMDb about titles it doesn't have yet, and by its own README doesn't store the key. If it's down, the TV asks OMDb directly. They are not included with screenshots. Treat that directory and device backups as private; the current pairing/storage implementation does not claim hardware-backed credential encryption.
+Your own sign-in and keys stay in private app storage and the local setup directory (`~/.cleantv-private`), outside this repository. They are not included with screenshots. Treat that directory and device backups as private; the current pairing/storage implementation does not claim hardware-backed credential encryption.
 
 | Component | Access and purpose |
 |---|---|
@@ -372,4 +372,4 @@ StreamHome is free and open source, and always will be. If it made your TV nicer
 
 Built on [CleanYourTV](https://github.com/Gathin23/cleanyourtv) by Gathin23 and contributors, including the launcher foundations, device tools and safety checks. MIT licence; see [LICENSE](LICENSE).
 
-Ratings use OMDb and the StreamRatings shared cache, with IMDb's own rating for new titles OMDb has not rated yet (limited personal, non-commercial use). Titles, artwork and metadata use TMDB, with a JustWatch fallback for new releases and JustWatch for opening a title's page in its app. This product uses the TMDB API but is not endorsed or certified by TMDB. Optional financial data uses INDmoney's official MCP; news uses Google News, TheNewsAPI and the original publishers. This project is independent of Sony and these service providers.
+Ratings use OMDb, with IMDb's own rating for new titles OMDb has not rated yet (limited personal, non-commercial use). Titles, artwork and metadata use TMDB, with a JustWatch fallback for new releases and JustWatch for opening a title's page in its app. This product uses the TMDB API but is not endorsed or certified by TMDB. Optional financial data uses INDmoney's official MCP; news uses Google News, TheNewsAPI and the original publishers. This project is independent of Sony and these service providers.

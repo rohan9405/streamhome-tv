@@ -12,24 +12,30 @@ import java.time.LocalDate;
 import java.util.Locale;
 
 /**
- * IMDb ratings, looked up the way the StreamRatings extension does: this TV's own cache, then the StreamRatings shared
- * cache that the extension uses too, then OMDb directly while the shared cache is down (omdbapi.com; IMDb has no free
- * API, and a free key allows 1,000 lookups a day). Every answer is kept with the title's year and release date, and
+ * IMDb ratings: this TV's own cache, then OMDb (omdbapi.com; IMDb has no free API, and a free key allows 1,000 lookups
+ * a day), through a rating cache of your own first if one is set (my-tv/api-keys.sh save cache). Every answer is kept with the title's year and release date, and
  * stays fresh as long as {@link CachePolicy} says (3 to 30 days by age), so a refresh asks only for titles that are
  * new or due. When nothing can be reached, or the refresh's budget is spent, the last rating known is shown.
  */
 final class Omdb {
     static final String PREFS = "omdb";
     static final String KEY = "api_key";
+    static final String CACHE_URL = "cache_url";
 
     private final SharedPreferences prefs;
     private final String apiKey;
+    private final String cacheUrl;
     private int budget;
 
     Omdb(Context ctx, int budget) {
         prefs = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         apiKey = prefs.getString(KEY, "").trim();
+        cacheUrl = prefs.getString(CACHE_URL, "").trim();
         this.budget = budget;
+    }
+
+    static void setCacheUrl(Context ctx, String url) {
+        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(CACHE_URL, url == null ? "" : url.trim()).apply();
     }
 
     static void setKey(Context ctx, String key) {
@@ -137,22 +143,27 @@ final class Omdb {
     }
 
     /**
-     * The StreamRatings order: the shared cache first, which answers from ratings any user fetched and otherwise asks
-     * OMDb with this key and keeps the answer for everyone; OMDb directly only while the shared cache is down. Null
-     * on a network error, or when the key or its daily limit was refused (never cached).
+     * OMDb directly, or the rating cache first when one is set, falling back to OMDb while it is down. Null on a
+     * network error, or when the key or its daily limit was refused (never cached).
      */
     private Entry fetch(String title, String year, long now) {
-        try {
-            return shared(title, year);
-        } catch (SharedCacheDown down) {
-            // Fall through to OMDb.
-        } catch (Exception refused) {
-            prefs.edit().putString("refused", String.valueOf(refused.getMessage())).apply();
-            return null;
+        if (!cacheUrl.isEmpty()) {
+            try {
+                return shared(title, year);
+            } catch (SharedCacheDown down) {
+                // Fall through to OMDb.
+            } catch (Exception refused) {
+                prefs.edit().putString("refused", String.valueOf(refused.getMessage())).apply();
+                return null;
+            }
         }
         try {
             Entry e = query(title, year, now);
-            if (!e.found && !year.isEmpty()) e = query(title, "", now);
+            if (!e.found && !year.isEmpty()) {
+                // Release years differ by a year between catalogues; further off, it is another title of the same name.
+                Entry any = query(title, "", now);
+                if (sameYear(year, any.year)) e = any;
+            }
             return e;
         } catch (IllegalStateException refused) {
             prefs.edit().putString("refused", String.valueOf(refused.getMessage())).apply();
@@ -162,8 +173,15 @@ final class Omdb {
         }
     }
 
-    /** The StreamRatings shared cache (worker/README.md in StreamRatings); the extension uses the same URL. */
-    static final String SHARED_CACHE_URL = "https://your-rating-cache.example";
+    /** Within a year of each other; OMDb gives a series as "2019–2022". */
+    static boolean sameYear(String asked, String answered) {
+        try {
+            int a = Integer.parseInt(asked.substring(0, 4)), b = Integer.parseInt(answered.substring(0, 4));
+            return Math.abs(a - b) <= 1;
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
 
     static final class SharedCacheDown extends Exception {
         SharedCacheDown(String message) {
@@ -172,7 +190,7 @@ final class Omdb {
     }
 
     private Entry shared(String title, String year) throws Exception {
-        Uri.Builder b = Uri.parse(SHARED_CACHE_URL + "/v1/rating").buildUpon().appendQueryParameter("title", title);
+        Uri.Builder b = Uri.parse(cacheUrl + "/v1/rating").buildUpon().appendQueryParameter("title", title);
         if (!year.isEmpty()) b.appendQueryParameter("year", year);
         Net.Response r;
         try {
@@ -185,8 +203,8 @@ final class Omdb {
 
     /**
      * {@code {"data":{"found":true,"year":"2020–","released":"05 Mar 2020","imdbRating":"9.0",...},"ts":...}}. The
-     * entry keeps the cache's ts, when OMDb was asked, so its freshness matches what every other user sees. A 4xx
-     * with an error is OMDb refusing this key or its limit; anything else means the cache is down.
+     * entry keeps the cache's ts, when OMDb was asked. A 4xx with an error is OMDb refusing this key or its limit;
+     * anything else means the cache is down.
      */
     static Entry parseShared(int code, String body) throws Exception {
         JSONObject o;
