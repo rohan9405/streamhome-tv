@@ -329,7 +329,7 @@ Undo at any point: `tools/switch-home.sh stock`, `my-tv/restore.sh`. Device quir
 
 ## Privacy and permissions
 
-Your own sign-in and keys stay in private app storage and the local setup directory (`~/.cleantv-private`), outside this repository. They are not included with screenshots. Treat that directory and device backups as private; the current pairing/storage implementation does not claim hardware-backed credential encryption.
+Your own sign-in and keys stay in private app storage and the local setup directory (`~/.cleantv-private`), outside this repository. One exception to know about: rating lookups go first to the [StreamRatings shared cache](https://github.com/rohan9405/StreamRatings/tree/main/worker), a Cloudflare Worker run by this project's author. It receives the title, year and your OMDb key, uses the key to ask OMDb about titles it doesn't have yet, and by its own README doesn't store the key. If it's down, the TV asks OMDb directly. They are not included with screenshots. Treat that directory and device backups as private; the current pairing/storage implementation does not claim hardware-backed credential encryption.
 
 | Component | Access and purpose |
 |---|---|
