@@ -7,9 +7,7 @@
   <img src="https://img.shields.io/badge/Android%20TV%20%C2%B7%20Google%20TV-8%2B-cfffcf?style=flat&labelColor=15181e" alt="Android TV and Google TV, Android 8 or newer">
   <a href="PROMPT.md"><img src="https://img.shields.io/badge/set%20up%20with-one%20prompt-cfffcf?style=flat&labelColor=15181e" alt="Set up with one prompt"></a>
   <a href="https://github.com/Gathin23/cleanyourtv"><img src="https://img.shields.io/badge/built%20on-CleanYourTV-cfffcf?style=flat&labelColor=15181e" alt="Built on CleanYourTV"></a>
-  <!-- Support badge: switch on once the Buy Me a Coffee page exists (replace YOUR_USERNAME), and in .github/FUNDING.yml.
-  <a href="https://buymeacoffee.com/YOUR_USERNAME"><img src="https://img.shields.io/badge/support-%E2%9D%A4-ff5e8a?style=flat&labelColor=15181e" alt="Support, buy me a coffee"></a>
-  -->
+  <a href="https://buymeacoffee.com/rohan9405"><img src="https://img.shields.io/badge/support-%E2%9D%A4-ff5e8a?style=flat&labelColor=15181e" alt="Support, buy me a coffee"></a>
 </p>
 
 <p align="center">
@@ -365,7 +363,9 @@ No ads, sponsored rows or app analytics are added by this project. Connected fea
 
 ## Support
 
-StreamHome is free and open source, and always will be. If it made your TV nicer to come home to, you can buy me a coffee (link coming soon); it helps keep it working as streaming apps change and adds more connectors. Stars, bug reports and pull requests help just as much.
+<a href="https://buymeacoffee.com/rohan9405"><img src="https://img.shields.io/badge/Buy%20me%20a%20coffee-%E2%98%95-ffdd00?style=for-the-badge&labelColor=15181e" alt="Buy me a coffee"></a>
+
+StreamHome is free and open source, and always will be. If it made your TV nicer to come home to, you can [buy me a coffee](https://buymeacoffee.com/rohan9405); it helps keep it working as streaming apps change and adds more connectors. Stars, bug reports and pull requests help just as much.
 
 ## Credits
 
