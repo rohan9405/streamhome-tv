@@ -5,7 +5,7 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/licence-MIT-cfffcf?style=flat&labelColor=15181e" alt="MIT licence"></a>
   <img src="https://img.shields.io/badge/Android%20TV%20%C2%B7%20Google%20TV-8%2B-cfffcf?style=flat&labelColor=15181e" alt="Android TV and Google TV, Android 8 or newer">
-  <a href="PROMPT.md"><img src="https://img.shields.io/badge/set%20up%20with-one%20prompt-cfffcf?style=flat&labelColor=15181e" alt="Set up with one prompt"></a>
+  <a href="#set-it-up-with-one-prompt"><img src="https://img.shields.io/badge/set%20up%20with-one%20prompt-cfffcf?style=flat&labelColor=15181e" alt="Set up with one prompt"></a>
   <a href="https://github.com/Gathin23/cleanyourtv"><img src="https://img.shields.io/badge/built%20on-CleanYourTV-cfffcf?style=flat&labelColor=15181e" alt="Built on CleanYourTV"></a>
   <a href="https://buymeacoffee.com/rohan9405"><img src="https://img.shields.io/badge/support-%E2%9D%A4-ff5e8a?style=flat&labelColor=15181e" alt="Support, buy me a coffee"></a>
 </p>
@@ -43,20 +43,19 @@
 - **Households with several streaming subscriptions** who miss Google TV's discovery but not its ads: one screen that shows what each service added this fortnight, best-rated first.
 - **Viewers in India** juggling Netflix, Prime Video, JioHotstar, SonyLIV, ZEE5 and YouTube: tuned and tested for India's catalogues.
 - **People who like an ambient TV**: a glance at the markets or your portfolio beside the clock, and headlines with a QR code between screensaver wallpapers.
-- **Tinkerers with a coding assistant**: [one prompt](PROMPT.md) sets it all up, and every connector is optional.
+- **Tinkerers with a coding assistant**: [one prompt](#set-it-up-with-one-prompt) sets it all up, and every connector is optional.
 
 ## Set it up with one prompt
 
-1. On the TV, turn on **USB debugging** (Settings → Device Preferences → About → press OK on Build seven times → Developer options).
-2. Clone this repo and open it in any coding assistant that can run shell commands:
-   ```bash
-   git clone https://github.com/rohan9405/streamhome-tv.git
-   ```
-3. Paste [PROMPT.md](PROMPT.md), with your TV model and the extras you want. The assistant installs, checks each step on the TV with screenshots, and asks you before anything you'd want a say in.
+Paste this into any coding assistant that can run shell commands, on a computer on the same Wi-Fi as your TV:
 
-Prefer doing it yourself? The same steps are in [Set it up](#set-it-up).
+```text
+Read https://raw.githubusercontent.com/rohan9405/streamhome-tv/main/PROMPT.md and follow it to set up StreamHome on my TV.
+```
 
-Built and running on **Sony BRAVIA BF1 · Google TV 12**, with India's streaming services. Other Android TV / Google TV devices need their own compatibility checks, especially for inputs, remote keys and screensaver overlays.
+Prefer doing it yourself? See [Set it up](#set-it-up).
+
+**Your TV must run Android TV or Google TV.** Samsung, LG, and Fire TV or Roku models can't run StreamHome. Built and tested on a **Sony BRAVIA BF1 · Google TV 12**; [check your model](docs/COMPATIBILITY.md).
 
 ## A home screen built around your apps
 
@@ -232,7 +231,7 @@ TMDB selects recent original releases and new seasons, not the date an older fil
 
 ## Set it up
 
-Use an **Android TV / Google TV running Android 8 or newer**, a computer on the same network, JDK 17, Android SDK platform 34 and build-tools 34. Network debugging is needed during installation. The tested setup is Sony BRAVIA BF1 with Google TV 12; this is not a universal TV compatibility claim.
+Use an **Android TV / Google TV running Android 8 or newer**, a computer on the same network, JDK 17, Android SDK platform 34 and build-tools 34. Network debugging is needed during installation. The tested setup is Sony BRAVIA BF1 with Google TV 12; [check your model](docs/COMPATIBILITY.md) first.
 
 [Docker build instructions](tools/docker-build.md) are available if you do not have the local Java/Android toolchain.
 
@@ -323,7 +322,7 @@ Follow these steps in order; each has a check. Use the repo's scripts rather tha
 | 7 | Portfolio (optional) | `python3 my-tv/indmoney-signin.py` (the user signs in on INDmoney's page), `my-tv/indmoney-pair.sh` | Chip appears beside the date |
 | 8 | News (optional) | `tools/install-addon.sh ambient-news`, then `tools/venv/bin/python -I tools/tv.py 'appops set io.github.rohan9405.ambient SYSTEM_ALERT_WINDOW allow'` | Apps → Ambient News → Start the screensaver now shows a story |
 | 9 | Theme | `tools/theme.sh my-tv/theme` (edit `my-tv/theme/config.json` for the user's apps first) | Drawer shows the user's favourites |
-| 10 | Hand-over and cleanup (ask first) | [my-tv/README.md](my-tv/README.md); show the package list before `tools/disable.sh` | Home button opens StreamHome; streaming, HDMI and remote work |
+| 10 | Hand-over and cleanup (ask first) | [my-tv/README.md](my-tv/README.md), for the Sony BRAVIA BF1 only; on other TVs see [PROMPT.md](PROMPT.md). Show the package list before `tools/disable.sh` | Home button opens StreamHome; streaming, HDMI and remote work |
 | 11 | Close | Turn network debugging off; `python3 tools/adb-closed.py <tv ip>` | Port closed |
 
 Undo at any point: `tools/switch-home.sh stock`, `my-tv/restore.sh`. Device quirks: [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md).
@@ -354,6 +353,8 @@ No ads, sponsored rows or app analytics are added by this project. Connected fea
 
 ## Current limits
 
+- Only the Sony BRAVIA BF1 has run all of StreamHome; [other models](docs/COMPATIBILITY.md) are expected to work to varying degrees, not confirmed.
+- Catalogue rows (new releases, genres, title links) are built for India. Elsewhere they show India's catalogue, whatever the TV's country.
 - App and catalogue data vary by service, region and firmware. A title can open the app's home screen when no usable title link exists.
 - Watch Next coverage depends on each app. Removing an item affects StreamHome, not the service's own watch history.
 - Portfolio figures and indices are snapshots with different source timestamps, not a continuously streaming trading terminal. Missing asset classes are omitted.
