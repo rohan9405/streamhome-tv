@@ -125,10 +125,21 @@ public final class FeedActivity extends Activity {
         StringBuilder b = new StringBuilder();
         b.append("Reading TV rows: ").append(checkSelfPermission(Refresher.READ_TV)
                 == PackageManager.PERMISSION_GRANTED ? "allowed" : "not allowed yet").append('\n');
-        b.append("IMDb ratings: ").append(Omdb.hasKey(this) ? "OMDb key set"
-                : "no OMDb key yet (sent from the Mac: my-tv/api-keys.sh send)").append('\n');
-        b.append("New releases (TMDB): ").append(Tmdb.hasToken(this) ? "token set"
-                : "no token yet (sent from the Mac: my-tv/api-keys.sh send)").append('\n');
+        // Each connection on its own: a missing or refused key turns off only what needs it.
+        String omdb = Omdb.refused(this);
+        b.append("IMDb ratings (OMDb): ").append(!Omdb.hasKey(this)
+                ? "needs an OMDb key (free at omdbapi.com; my-tv/api-keys.sh save omdb, then send). Until then, only new TMDB titles get IMDb's rating."
+                : !omdb.isEmpty() ? "OMDb refused the key (" + omdb + "): save a new one with my-tv/api-keys.sh"
+                : "key set").append('\n');
+        b.append("New releases, genres, Read more (TMDB): ").append(!Tmdb.hasToken(this)
+                ? "needs a TMDB read token (free at themoviedb.org; my-tv/api-keys.sh save tmdb, then send). Until then the header uses JustWatch, and genres and Read more are off."
+                : Tmdb.refused(this) ? "TMDB refused the token: save a new one with my-tv/api-keys.sh"
+                : "token set").append('\n');
+        Indmoney im = new Indmoney(this);
+        b.append("Insight chip (INDmoney): ").append(!im.paired()
+                ? "not connected, so the chip stays hidden (optional: my-tv/indmoney-signin.py, then my-tv/indmoney-pair.sh)"
+                : im.reconnectNeeded() ? "INDmoney asked to sign in again: my-tv/indmoney-signin.py, then my-tv/indmoney-pair.sh"
+                : "connected").append('\n');
         b.append("Last refresh: ").append(s.refreshedMs == 0 ? "never"
                 : DateUtils.getRelativeTimeSpanString(s.refreshedMs)).append('\n');
         if (!s.error.isEmpty()) b.append("Problem: ").append(s.error).append('\n');

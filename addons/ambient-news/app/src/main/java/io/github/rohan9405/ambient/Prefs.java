@@ -74,6 +74,11 @@ final class Prefs {
         return 20;
     }
 
+    /** TheNewsAPI turned the token away at the last try. */
+    boolean theNewsRefused() {
+        return p.getBoolean("thenews_refused", false);
+    }
+
     /** TheNewsAPI token, sent from the computer (my-tv/api-keys.sh); empty until then. */
     String token() {
         return p.getString("token", "").trim();

@@ -1509,9 +1509,11 @@ final class FeedHome {
         if (e.tmdb.isEmpty()) return;   // a YouTube video: its description is all there is
         feed.details(e.tmdb, d -> {
             facts.removeAllViews();
-            if (d == null) {
+            if (d == null || d.containsKey("error")) {
                 TextView none = text(13, 0x80FFFFFF, regular);
-                none.setText(R.string.feed_no_details);
+                String error = d == null ? "" : d.get("error");
+                none.setText("tmdb_missing".equals(error) ? R.string.feed_needs_tmdb
+                        : "tmdb_refused".equals(error) ? R.string.feed_tmdb_refused : R.string.feed_no_details);
                 facts.addView(none, wrap());
                 return;
             }

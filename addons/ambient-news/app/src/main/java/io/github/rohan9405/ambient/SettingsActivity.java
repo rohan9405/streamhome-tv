@@ -35,6 +35,7 @@ public class SettingsActivity extends Activity {
         String token = getIntent().getStringExtra("news_token");
         if (token != null) {
             prefs.set("token", token.trim());
+            prefs.set("thenews_refused", false);
             Toast.makeText(this, R.string.token_saved, Toast.LENGTH_SHORT).show();
             startService(true);
             finish();
@@ -84,7 +85,8 @@ public class SettingsActivity extends Activity {
         });
         section(R.string.section_sources);
         row(getString(R.string.source_google), onOff(prefs.source(News.GOOGLE)), () -> toggle("source_" + News.GOOGLE));
-        String theNews = prefs.token().isEmpty() ? getString(R.string.no_token) : onOff(prefs.source(News.THENEWS));
+        String theNews = prefs.token().isEmpty() ? getString(R.string.no_token)
+                : prefs.theNewsRefused() ? getString(R.string.token_refused) : onOff(prefs.source(News.THENEWS));
         row(getString(R.string.source_thenews), theNews, () -> toggle("source_" + News.THENEWS));
         section(R.string.section_topics);
         for (String topic : News.TOPICS) row(getString(topicLabel(topic, false)), onOff(prefs.topic(topic)), () -> toggle("topic_" + topic));

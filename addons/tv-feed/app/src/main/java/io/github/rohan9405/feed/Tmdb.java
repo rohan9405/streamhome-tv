@@ -64,16 +64,24 @@ final class Tmdb {
 
     private final String token;
     private final File cache;
+    private final android.content.SharedPreferences prefs;
 
     Tmdb(Context ctx) {
-        token = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY, "").trim();
+        prefs = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        token = prefs.getString(KEY, "").trim();
         cache = new File(ctx.getCacheDir(), "tmdb");
         //noinspection ResultOfMethodCallIgnored
         cache.mkdirs();
     }
 
     static void setToken(Context ctx, String token) {
-        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(KEY, token == null ? "" : token.trim()).apply();
+        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(KEY, token == null ? "" : token.trim())
+                .remove("refused").apply();
+    }
+
+    /** TMDB turned the saved token away (401): the Feed screen says so, until a new token or an accepted request. */
+    static boolean refused(Context ctx) {
+        return ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean("refused", false);
     }
 
     static boolean hasToken(Context ctx) {
@@ -367,10 +375,14 @@ final class Tmdb {
                 try {
                     Net.Response r = Net.request("https://" + host + pathAndQuery, "Authorization", "Bearer " + token, 1 << 20);
                     if (r.code / 100 != 2) {
-                        if (r.code == 401) return null;   // a bad token: no point in retrying
+                        if (r.code == 401) {
+                            prefs.edit().putBoolean("refused", true).apply();
+                            return null;   // a bad token: no point in retrying
+                        }
                         continue;
                     }
                     JSONObject o = new JSONObject(r.body);
+                    if (prefs.getBoolean("refused", false)) prefs.edit().remove("refused").apply();
                     File tmp = new File(f.getPath() + "." + Thread.currentThread().getId());
                     try (FileOutputStream out = new FileOutputStream(tmp)) {
                         out.write(r.body.getBytes(StandardCharsets.UTF_8));

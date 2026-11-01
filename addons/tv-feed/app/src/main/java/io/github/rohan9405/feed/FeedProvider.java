@@ -41,6 +41,12 @@ public final class FeedProvider extends ContentProvider {
 
     /** A row of {@link #DETAILS} for "movie:123" or "tv:456", fetched now (kept a week); null when TMDB has nothing. */
     private Cursor details(String tmdb) {
+        if (!Tmdb.hasToken(getContext()) || Tmdb.refused(getContext())) {
+            // Home says what is missing instead of an empty popup.
+            MatrixCursor c = new MatrixCursor(new String[] {"error"});
+            c.addRow(new Object[] {Tmdb.hasToken(getContext()) ? "tmdb_refused" : "tmdb_missing"});
+            return c;
+        }
         Tmdb.Details d = tmdb == null ? null : new Tmdb(getContext()).details(tmdb);
         if (d == null) return null;
         MatrixCursor c = new MatrixCursor(DETAILS);

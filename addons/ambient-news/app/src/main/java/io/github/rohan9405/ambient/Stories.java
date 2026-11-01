@@ -101,7 +101,10 @@ final class Stories {
                 prefs.theNewsUsed(now);
                 asked++;
                 String json = text(News.theNewsUrl(topic, prefs.token()), 1 << 20);
+                // 401 or 403: the token was turned away; Settings says so, and Google News carries on.
+                if (lastCode == 401 || lastCode == 403) prefs.set("thenews_refused", true);
                 if (json != null) {
+                    prefs.set("thenews_refused", false);
                     theNewsAnswered = true;
                     candidates.addAll(News.parseTheNews(json, topic));
                 }
@@ -290,6 +293,9 @@ final class Stories {
         }
     }
 
+    /** The HTTP status of the last request ({@link #bytes}), 0 when none came back. */
+    private static volatile int lastCode;
+
     private static String text(String url, int maxBytes) {
         byte[] b = bytes(url, maxBytes);
         return b == null ? null : new String(b, StandardCharsets.UTF_8);
@@ -305,7 +311,9 @@ final class Stories {
             c.setInstanceFollowRedirects(true);
             c.setRequestProperty("User-Agent", UA);
             c.setRequestProperty("Accept-Language", "en-IN,en;q=0.9");
-            if (c.getResponseCode() / 100 != 2) return null;
+            lastCode = 0;
+            lastCode = c.getResponseCode();
+            if (lastCode / 100 != 2) return null;
             try (InputStream in = c.getInputStream()) {
                 ByteArrayOutputStream out = new ByteArrayOutputStream();
                 byte[] buf = new byte[32 * 1024];

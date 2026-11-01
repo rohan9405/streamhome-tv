@@ -33,7 +33,13 @@ final class Omdb {
     }
 
     static void setKey(Context ctx, String key) {
-        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(KEY, key == null ? "" : key.trim()).apply();
+        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(KEY, key == null ? "" : key.trim())
+                .remove("refused").apply();
+    }
+
+    /** Why OMDb last turned the key away ("invalid api key!", "request limit reached!"), empty when it did not. */
+    static String refused(Context ctx) {
+        return ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("refused", "");
     }
 
     static boolean hasKey(Context ctx) {
@@ -126,7 +132,7 @@ final class Omdb {
         budget--;
         Entry fetched = fetch(clean, year, now);
         if (fetched == null) return cached;   // network trouble: keep the last answer, cache nothing
-        prefs.edit().putString(cacheKey, fetched.toJson()).apply();
+        prefs.edit().putString(cacheKey, fetched.toJson()).remove("refused").apply();
         return fetched;
     }
 
@@ -141,12 +147,16 @@ final class Omdb {
         } catch (SharedCacheDown down) {
             // Fall through to OMDb.
         } catch (Exception refused) {
+            prefs.edit().putString("refused", String.valueOf(refused.getMessage())).apply();
             return null;
         }
         try {
             Entry e = query(title, year, now);
             if (!e.found && !year.isEmpty()) e = query(title, "", now);
             return e;
+        } catch (IllegalStateException refused) {
+            prefs.edit().putString("refused", String.valueOf(refused.getMessage())).apply();
+            return null;
         } catch (Exception e) {
             return null;
         }

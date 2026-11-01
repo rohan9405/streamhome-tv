@@ -21,7 +21,8 @@
     <string name="section_timing">Sequence</string>
     <string name="source_google">Google News</string>
     <string name="source_thenews">TheNewsAPI</string>
-    <string name="no_token">no token yet (my-tv/api-keys.sh)</string>
+    <string name="token_refused">TheNewsAPI refused the token: save a new one (my-tv/api-keys.sh save news, then send). Google News carries on.</string>
+    <string name="no_token">needs a TheNewsAPI token (free at thenewsapi.com; my-tv/api-keys.sh save news, then send). Google News works without one.</string>
     <string name="topic_business_short">Business</string>
     <string name="scan_to_read">Scan to read more</string>
     <string name="status_counts">%1$d stories ready: Google News %2$d, TheNewsAPI %3$d · updated %4$s</string>

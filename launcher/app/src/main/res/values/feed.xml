@@ -24,6 +24,8 @@
     <string name="feed_close">Close</string>
     <string name="feed_loading_details">Loading cast and details…</string>
     <string name="feed_no_details">No more details for this title right now.</string>
+    <string name="feed_needs_tmdb">Cast and details need a TMDB read token (free at themoviedb.org). Add it from your computer: my-tv/api-keys.sh save tmdb, then send.</string>
+    <string name="feed_tmdb_refused">TMDB turned the saved token away. Save a new one from your computer: my-tv/api-keys.sh save tmdb, then send.</string>
     <string name="feed_starring">Starring</string>
     <string name="feed_director">Director</string>
     <string name="feed_directors">Directors</string>

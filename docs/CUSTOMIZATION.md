@@ -1,4 +1,4 @@
-# Customising BRAVIA Home
+# Customising StreamHome
 
 Use the remote for everyday changes. The checked-in theme supplies defaults for this BRAVIA setup; an advanced theme can override additional launcher settings.
 

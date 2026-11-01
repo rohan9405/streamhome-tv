@@ -25,3 +25,7 @@ Captured 31 October 2026 from the current Android interface on the local Android
 | `insight-settings.jpg` | Chip, portfolio and rotation controls |
 | `ambient-news.jpg` | A real news story in the screensaver, captured on the BRAVIA |
 | `ambient-settings.jpg` | News connectors and topic controls |
+
+## Marketing images
+
+`docs/marketing/` holds the README banner (`banner.png`, 1600 × 600), a social preview for link shares (`social-preview.png`, 1280 × 640; upload it under the repository's Settings → General → Social preview) and a feature collage (`features.jpg`). They are made from the screenshots above, in the launcher's Outfit typeface.

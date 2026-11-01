@@ -63,7 +63,7 @@ final class Indmoney {
         if (session == null) {
             call(new JSONObject(map("jsonrpc", "2.0", "id", 1, "method", "initialize", "params", new JSONObject(map(
                     "protocolVersion", "2025-06-18", "capabilities", new JSONObject(),
-                    "clientInfo", new JSONObject(map("name", "bravia-home", "version", "1")))))));
+                    "clientInfo", new JSONObject(map("name", "streamhome", "version", "1")))))));
             call(new JSONObject(map("jsonrpc", "2.0", "method", "notifications/initialized")));
         }
         JSONObject res = call(new JSONObject(map("jsonrpc", "2.0", "id", 2, "method", "tools/call",

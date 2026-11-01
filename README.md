@@ -1,25 +1,68 @@
-<div align="center">
+<p align="center">
+  <img src="docs/marketing/banner.png" alt="StreamHome: every streaming app, one home screen, for Android TV and Google TV. No ads, IMDb ratings, Continue watching." width="860">
+</p>
 
-# BRAVIA Home
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/licence-MIT-cfffcf?style=flat&labelColor=15181e" alt="MIT licence"></a>
+  <img src="https://img.shields.io/badge/Android%20TV%20%C2%B7%20Google%20TV-8%2B-cfffcf?style=flat&labelColor=15181e" alt="Android TV and Google TV, Android 8 or newer">
+  <a href="PROMPT.md"><img src="https://img.shields.io/badge/set%20up%20with-one%20prompt-cfffcf?style=flat&labelColor=15181e" alt="Set up with one prompt"></a>
+  <a href="https://github.com/Gathin23/cleanyourtv"><img src="https://img.shields.io/badge/built%20on-CleanYourTV-cfffcf?style=flat&labelColor=15181e" alt="Built on CleanYourTV"></a>
+  <!-- Support badge: switch on once the Buy Me a Coffee page exists (replace YOUR_USERNAME), and in .github/FUNDING.yml.
+  <a href="https://buymeacoffee.com/YOUR_USERNAME"><img src="https://img.shields.io/badge/support-%E2%9D%A4-ff5e8a?style=flat&labelColor=15181e" alt="Support, buy me a coffee"></a>
+  -->
+</p>
 
-### Your streaming apps. Your home screen.
+<p align="center">
+  <b>Every streaming app. One home screen.</b><br>
+  New releases from each of your apps, IMDb ratings, Continue watching across apps and title details, with no ads or sponsored rows.<br>
+  Optional connectors add a portfolio and markets chip and news between your screensaver wallpapers.
+</p>
 
-A cinematic, ad-free launcher for Android TV and Google TV.<br>
-New releases, IMDb ratings and Continue watching—with optional portfolio insights and news between your screensaver wallpapers.
+<p align="center">
+  <a href="#where-streamhome-fits">Where it fits</a> · <a href="#set-it-up-with-one-prompt">One-prompt setup</a> · <a href="#a-home-screen-built-around-your-apps">Tour</a> · <a href="#connectors-and-keys">Connectors and keys</a> · <a href="#for-coding-agents">For coding agents</a> · <a href="#support">Support</a>
+</p>
 
-**No sponsored rows · Offline launcher · Optional connected add-ons · Remote-first controls**
+![StreamHome: full-screen title artwork, the apps' own banners in a glass drawer and the optional market chip](docs/screens/header.jpg)
 
-[Explore Home](#a-home-screen-built-around-your-apps) · [Portfolio & markets](#portfolio--markets-optional) · [Ambient News](#ambient-news-optional) · [Customise](#make-it-yours) · [Install](#set-it-up)
+<sub>Most screenshots show the current interface in an Android TV emulator with sample catalogue entries, viewing progress and fictional portfolio and market figures. The Ambient News slide is a real story captured on a Sony BRAVIA; the drawer shows the apps' own banners. No personal account data or credentials are pictured.</sub>
 
-</div>
+## Where StreamHome fits
 
-![BRAVIA Home: full-screen title artwork, glass app drawer and the optional market chip](docs/screens/header.jpg)
+[CleanYourTV](https://github.com/Gathin23/cleanyourtv) strips the ads and bloat from an Android or Google TV and gives it a clean, minimal launcher. **StreamHome is built on top of it** and answers the next question: *now that the ads are gone, what should I watch?*
 
-<sub>Screenshots show the current interface running in an Android TV emulator. Catalogue selections and viewing progress are sample data; all portfolio values and market quotes are fictional. The Ambient News slide is a real story captured on the BRAVIA from Google News; the drawer shows the apps' own banners. No personal account data or credentials are pictured.</sub>
+| | CleanYourTV | StreamHome |
+|---|---|---|
+| Removes sponsored rows, telemetry and preloaded junk | ✓ | ✓ (same tools and safety checks) |
+| Clean launcher with your favourite apps | ✓ | ✓ |
+| What's new on each of *your* streaming apps, with artwork | | ✓ |
+| IMDb ratings, Read more (plot, cast, seasons, age rating) | | ✓ |
+| Continue watching across apps, top titles per service, genres | | ✓ |
+| Opens a title's own page in the app | | ✓ (Prime Video, Netflix, Apple TV) |
+| Optional connectors: portfolio and markets chip, news in the screensaver | | ✓ |
+
+**Who it's for**
+
+- **Households with several streaming subscriptions** who miss Google TV's discovery but not its ads: one screen that shows what each service added this fortnight, best-rated first.
+- **Viewers in India** juggling Netflix, Prime Video, JioHotstar, SonyLIV, ZEE5 and YouTube: tuned and tested for India's catalogues.
+- **People who like an ambient TV**: a glance at the markets or your portfolio beside the clock, and headlines with a QR code between screensaver wallpapers.
+- **Tinkerers with a coding assistant**: [one prompt](PROMPT.md) sets it all up, and every connector is optional.
+
+## Set it up with one prompt
+
+1. On the TV, turn on **USB debugging** (Settings → Device Preferences → About → press OK on Build seven times → Developer options).
+2. Clone this repo and open it in any coding assistant that can run shell commands:
+   ```bash
+   git clone https://github.com/rohan9405/streamhome-tv.git
+   ```
+3. Paste [PROMPT.md](PROMPT.md), with your TV model and the extras you want. The assistant installs, checks each step on the TV with screenshots, and asks you before anything you'd want a say in.
+
+Prefer doing it yourself? The same steps are in [Set it up](#set-it-up).
 
 Built and running on **Sony BRAVIA BF1 · Google TV 12**, with India's streaming services. Other Android TV / Google TV devices need their own compatibility checks, especially for inputs, remote keys and screensaver overlays.
 
 ## A home screen built around your apps
+
+![What StreamHome adds: new releases per app, Read more, Continue watching across apps, and news between screensaver wallpapers](docs/marketing/features.jpg)
 
 ### A different backdrop for every service
 
@@ -118,6 +161,26 @@ Open **Apps → Ambient News** to choose:
 
 India, Business & markets and Technology start enabled; other topics start disabled. The default sequence is one story after every two wallpapers, and a story stays for 20 seconds. Screensaver overlays were built for the BRAVIA setup; verify behaviour on another model before leaving the service enabled.
 
+## Connectors and keys
+
+StreamHome works with **no keys at all**: Home, your apps, Continue watching and app-published rows need none, and the header falls back to JustWatch. Each key below switches on one thing. Keys are entered on your computer (hidden prompt), checked, kept in `~/.cleantv-private` and sent to the TV; they are never part of this repository.
+
+| Connector | Needs | Free tier | Without it | Where a missing or refused key shows |
+|---|---|---|---|---|
+| Streaming apps' own rows | Nothing (TV listings permission) | — | — | Feed screen |
+| New releases, genres, Read more | TMDB API Read Access Token | Yes | Header uses JustWatch; genres off; Read more says it needs TMDB | Feed screen, Read more popup |
+| IMDb ratings | OMDb API key | Yes, 1,000 a day | Only new catalogue titles get IMDb's rating | Feed screen |
+| Title pages in apps | Nothing (JustWatch) | — | — | — |
+| Portfolio and markets chip | Your INDmoney sign-in | Free account | Chip hidden | Feed screen; chip reads "Reconnect" if INDmoney asks again |
+| Ambient News: Google News | Nothing | — | — | Ambient News settings |
+| Ambient News: TheNewsAPI | TheNewsAPI token | Yes, 100 a day | Google News alone | Ambient News settings |
+
+```bash
+my-tv/api-keys.sh save tmdb      # or omdb, news: paste once, it is checked
+my-tv/api-keys.sh send           # TV_HOST=<tv ip>
+python3 my-tv/indmoney-signin.py && my-tv/indmoney-pair.sh    # portfolio chip, optional
+```
+
 ## Make it yours
 
 Three places control different parts of the experience:
@@ -178,8 +241,8 @@ Use an **Android TV / Google TV running Android 8 or newer**, a computer on the 
 ### 1. Install streaming Home
 
 ```bash
-git clone https://github.com/rohan9405/bravia-home.git
-cd bravia-home
+git clone https://github.com/rohan9405/streamhome-tv.git
+cd streamhome-tv
 python3 -m venv tools/venv
 tools/venv/bin/pip install -r tools/requirements.txt
 export TV_HOST='<tv ip>'
@@ -247,6 +310,26 @@ Use `--ez demo false` to return to app-published rows. This switch supplies cata
 
 </details>
 
+## For coding agents
+
+Follow these steps in order; each has a check. Use the repo's scripts rather than writing replacements. Never print, log or commit a key, token or sign-in.
+
+| # | Step | Command | Check |
+|---|---|---|---|
+| 1 | Tools | `python3 -m venv tools/venv && tools/venv/bin/pip install -r tools/requirements.txt`; set `JAVA_HOME` (JDK 17–22) and `ANDROID_HOME` (platform 34, build-tools 34) | `java -version` |
+| 2 | Connect | `export TV_HOST=<tv ip>`; `tools/venv/bin/python -I tools/tv.py --probe` (the user accepts "Allow USB debugging?") | Prints model and Android version |
+| 3 | Busy? | `tools/venv/bin/python -I tools/tv.py 'dumpsys media_session \| grep -c "state=3"'` | `0`; otherwise wait, don't touch the screen |
+| 4 | Launcher | `STOCK_LAUNCHER=none launcher/build-and-install.sh` | `tools/tv.py --screenshot home.png HOME` shows StreamHome |
+| 5 | Feed add-on | `tools/install-addon.sh tv-feed`, then `tools/venv/bin/python -I tools/tv.py 'pm grant io.github.rohan9405.feed android.permission.READ_TV_LISTINGS'` | Apps → Feed lists what each app publishes |
+| 6 | Keys (only those the user wants) | `my-tv/api-keys.sh save tmdb\|omdb\|news` (the user pastes into the hidden prompt), then `my-tv/api-keys.sh send` | Apps → Feed shows "token set" / "key set" |
+| 7 | Portfolio (optional) | `python3 my-tv/indmoney-signin.py` (the user signs in on INDmoney's page), `my-tv/indmoney-pair.sh` | Chip appears beside the date |
+| 8 | News (optional) | `tools/install-addon.sh ambient-news`, then `tools/venv/bin/python -I tools/tv.py 'appops set io.github.rohan9405.ambient SYSTEM_ALERT_WINDOW allow'` | Apps → Ambient News → Start the screensaver now shows a story |
+| 9 | Theme | `tools/theme.sh my-tv/theme` (edit `my-tv/theme/config.json` for the user's apps first) | Drawer shows the user's favourites |
+| 10 | Hand-over and cleanup (ask first) | [my-tv/README.md](my-tv/README.md); show the package list before `tools/disable.sh` | Home button opens StreamHome; streaming, HDMI and remote work |
+| 11 | Close | Turn network debugging off; `python3 tools/adb-closed.py <tv ip>` | Port closed |
+
+Undo at any point: `tools/switch-home.sh stock`, `my-tv/restore.sh`. Device quirks: [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md).
+
 ## Privacy and permissions
 
 Your own sign-in and keys stay in private app storage and the local setup directory (`~/.cleantv-private`), outside this repository. They are not included with screenshots. Treat that directory and device backups as private; the current pairing/storage implementation does not claim hardware-backed credential encryption.
@@ -265,7 +348,7 @@ No ads, sponsored rows or app analytics are added by this project. Connected fea
 | What | Command |
 |---|---|
 | Make stock Home the default | `TV_HOST=<tv ip> tools/switch-home.sh stock` |
-| Switch back to BRAVIA Home | `TV_HOST=<tv ip> tools/switch-home.sh clean` |
+| Switch back to StreamHome | `TV_HOST=<tv ip> tools/switch-home.sh clean` |
 | Undo the Sony setup, including DNS and screensaver changes | `TV_HOST=<tv ip> my-tv/restore.sh` |
 | Reset the applied theme | `TV_HOST=<tv ip> tools/theme.sh --reset` |
 | Disable news only | Apps → Ambient News → News in the screensaver → Off |
@@ -274,11 +357,15 @@ No ads, sponsored rows or app analytics are added by this project. Connected fea
 ## Current limits
 
 - App and catalogue data vary by service, region and firmware. A title can open the app's home screen when no usable title link exists.
-- Watch Next coverage depends on each app. Removing an item affects BRAVIA Home, not the service's own watch history.
+- Watch Next coverage depends on each app. Removing an item affects StreamHome, not the service's own watch history.
 - Portfolio figures and indices are snapshots with different source timestamps, not a continuously streaming trading terminal. Missing asset classes are omitted.
 - INDmoney can require renewed sign-in. The current recovery path uses the computer scripts, not a TV QR code.
 - Ambient News depends on Android overlay/screensaver behaviour, usable publisher photos and connector availability. Google News page parsing can break after upstream changes.
 - Drip spending, cricket cards and financial insights on the screensaver are not implemented here. Today's finance feature is the Home insight chip and its detail popup.
+
+## Support
+
+StreamHome is free and open source, and always will be. If it made your TV nicer to come home to, you can buy me a coffee (link coming soon); it helps keep it working as streaming apps change and adds more connectors. Stars, bug reports and pull requests help just as much.
 
 ## Credits
 

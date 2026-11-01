@@ -32,7 +32,7 @@ os.chmod(DIR, 0o700)
 client_path = os.path.join(DIR, 'client.json')
 if not os.path.exists(client_path):
     save('client.json', post(BASE + '/register', json.dumps({
-        'client_name': 'BRAVIA Home', 'redirect_uris': [REDIRECT], 'grant_types': ['authorization_code', 'refresh_token'],
+        'client_name': 'StreamHome', 'redirect_uris': [REDIRECT], 'grant_types': ['authorization_code', 'refresh_token'],
         'response_types': ['code'], 'token_endpoint_auth_method': 'client_secret_post',
         'scope': 'portfolio:read market:read'}).encode(), 'application/json'))
     print('Registered a read-only client.')
