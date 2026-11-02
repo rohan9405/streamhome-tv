@@ -51,6 +51,19 @@ final class Insights {
         return settings(ctx).getBoolean("portfolio", true);
     }
 
+    static final String[] VIEWS = {"portfolio", "mf", "in", "us", "nifty", "sensex"};
+
+    static boolean viewOn(Context ctx, String key) {
+        // An existing indices-only setup must not start showing holdings after an upgrade.
+        boolean fallback = "mf".equals(key) || "in".equals(key) || "us".equals(key)
+                ? portfolioOn(ctx) : true;
+        return settings(ctx).getBoolean(key, fallback);
+    }
+
+    static boolean holdingsOn(Context ctx) {
+        return portfolioOn(ctx) || viewOn(ctx, "mf") || viewOn(ctx, "in") || viewOn(ctx, "us");
+    }
+
     static int rotationSec(Context ctx) {
         return settings(ctx).getInt("rotation", 30);
     }
@@ -58,7 +71,7 @@ final class Insights {
     /** A setting changed: Home hears it at once; showing the portfolio again fetches it. */
     static void changed(Context ctx) {
         ctx.getContentResolver().notifyChange(FeedProvider.insightsUri(), null);
-        if (portfolioOn(ctx)) kick(ctx);
+        if (chipOn(ctx) && holdingsOn(ctx)) kick(ctx);
     }
 
     /**
@@ -69,8 +82,10 @@ final class Insights {
         JSONObject o;
         try {
             o = new JSONObject(saved(ctx));
-            if (!portfolioOn(ctx)) o.remove("portfolio");
-            o.put("chip", chipOn(ctx)).put("rotation", rotationSec(ctx));
+            if (!holdingsOn(ctx)) o.remove("portfolio");
+            JSONObject views = new JSONObject();
+            for (String key : VIEWS) views.put(key, viewOn(ctx, key));
+            o.put("views", views).put("chip", chipOn(ctx)).put("rotation", rotationSec(ctx));
         } catch (JSONException e) {
             return "{\"status\":\"none\"}";
         }
@@ -129,8 +144,8 @@ final class Insights {
         }
         Indmoney im = new Indmoney(ctx);
         try {
-            // With the portfolio hidden, the holdings are not even fetched: only the indices.
-            boolean portfolio = portfolioOn(ctx);
+            // No holdings request when the total and all three class views are hidden.
+            boolean portfolio = holdingsOn(ctx);
             JSONObject none = new JSONObject();
             JSONObject mf = portfolio ? im.tool("networth_holdings", new JSONObject().put("asset_type", "MF")) : none;
             JSONObject in = portfolio ? im.tool("networth_holdings", new JSONObject().put("asset_type", "IND_STOCK")) : none;

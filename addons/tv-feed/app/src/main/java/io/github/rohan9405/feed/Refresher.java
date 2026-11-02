@@ -36,7 +36,7 @@ final class Refresher {
     static final String READ_TV = "android.permission.READ_TV_LISTINGS";
     static final long STALE_MS = 20L * 60 * 1000;
     private static final int MAX_CONTINUE = 20;
-    static final int TOP = 10;
+    static final int TOP = 40; // Home displays ten; the remainder is a local replacement reservoir.
     /** Header candidates kept per app, ranked: Home shows 5, its best 2 and 3 drawn from the rest each refresh. */
     private static final int HERO_PER_APP = 25;
     private static final int RATING_BUDGET = 200;

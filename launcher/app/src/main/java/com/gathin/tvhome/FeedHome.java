@@ -92,6 +92,10 @@ final class FeedHome {
     private final float d;
     private final PackageManager pm;
     private final SharedPreferences prefs;
+    private final SeenTitles seenTitles;
+    private final String seenPreference;
+    private Feed.Entry lastSeenEntry;
+    private final Map<Tiles, List<Feed.Entry>> undoSeenRows = new java.util.IdentityHashMap<>();
     private final Set<String> hidden;
     private final List<String> defaultDrawer;
     private final Typeface light, regular, medium;
@@ -164,6 +168,9 @@ final class FeedHome {
         d = act.getResources().getDisplayMetrics().density;
         pm = act.getPackageManager();
         prefs = act.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        // One profile exists today. Keep its history explicitly scoped for a future profile picker.
+        seenPreference = "seen_titles." + prefs.getString("active_profile", "default");
+        seenTitles = new SeenTitles(prefs.getStringSet(seenPreference, Collections.emptySet()));
         hidden = new HashSet<>(hiddenApps);
         defaultDrawer = new ArrayList<>(dockApps);
         light = font(R.font.outfit_light);
@@ -627,7 +634,7 @@ final class FeedHome {
     private void drawerMenu(int index) {
         String pkg = drawer.get(index);
         App a = apps.get(pkg);
-        menu(a == null ? pkg : a.label, new String[] {
+        menu(drawerBand.getChildAt(index), a == null ? pkg : a.label, new String[] {
                 act.getString(R.string.feed_open), act.getString(R.string.feed_move),
                 act.getString(R.string.feed_remove), act.getString(R.string.feed_app_info)}, new Runnable[] {
                 () -> launch(pkg),
@@ -698,7 +705,7 @@ final class FeedHome {
             tile.setOnFocusChangeListener((v, has) -> lift(v, has, 1.1f));
             tile.setOnClickListener(v -> launch(a.pkg));
             tile.setOnLongClickListener(v -> {
-                menu(a.label, new String[] {act.getString(R.string.feed_open), act.getString(R.string.feed_add),
+                menu(v, a.label, new String[] {act.getString(R.string.feed_open), act.getString(R.string.feed_add),
                         act.getString(R.string.feed_app_info)}, new Runnable[] {
                         () -> launch(a.pkg),
                         () -> {
@@ -843,9 +850,61 @@ final class FeedHome {
     }
 
     private void bindTabRow() {
-        List<Feed.Entry> list = feed.tabs().get(selectedTab);
-        tabRow.setAdapter(new Tiles(list == null ? Collections.emptyList() : list, S_TAB_ROW, true));
+        tabRow.setAdapter(new Tiles(platformCandidates(selectedTab), S_TAB_ROW, true));
         tabCaption.setText("");
+    }
+
+    /** Extra local candidates preserve the ten-card layout as titles are marked seen. */
+    private List<Feed.Entry> platformCandidates(String pkg) {
+        List<Feed.Entry> out = new ArrayList<>();
+        for (Map<String, List<Feed.Entry>> source : java.util.Arrays.asList(feed.tabs(), feed.pool())) {
+            List<Feed.Entry> list = source.get(pkg);
+            if (list != null) out.addAll(list);
+        }
+        return out;
+    }
+
+    private void markSeen(Feed.Entry e) {
+        lastSeenEntry = e;
+        undoSeenRows.clear();
+        for (RecyclerView row : new RecyclerView[] {tabRow, genreRow}) {
+            if (row.getAdapter() instanceof Tiles) {
+                Tiles adapter = (Tiles) row.getAdapter();
+                undoSeenRows.put(adapter, new ArrayList<>(adapter.list));
+            }
+        }
+        seenTitles.mark(e);
+        prefs.edit().putStringSet(seenPreference, seenTitles.saved()).apply();
+        for (RecyclerView row : new RecyclerView[] {tabRow, genreRow}) {
+            if (row.getAdapter() instanceof Tiles) ((Tiles) row.getAdapter()).replaceSeen(row);
+        }
+        Toast.makeText(act, "Marked as seen for this profile", Toast.LENGTH_SHORT).show();
+    }
+
+    private void undoLastSeen() {
+        if (lastSeenEntry == null) return;
+        seenTitles.unmark(lastSeenEntry);
+        prefs.edit().putStringSet(seenPreference, seenTitles.saved()).apply();
+        for (RecyclerView row : new RecyclerView[] {tabRow, genreRow}) {
+            if (!(row.getAdapter() instanceof Tiles)) continue;
+            Tiles adapter = (Tiles) row.getAdapter();
+            List<Feed.Entry> previous = undoSeenRows.get(adapter);
+            if (previous == null) continue;
+            for (int i = 0; i < previous.size(); i++) {
+                if (adapter.list.get(i) == previous.get(i)) continue;
+                adapter.list.set(i, previous.get(i));
+                adapter.notifyItemChanged(i);
+                RecyclerView.ViewHolder holder = row.findViewHolderForAdapterPosition(i);
+                if (holder != null) {
+                    holder.itemView.setAlpha(0.3f);
+                    holder.itemView.animate().alpha(1f).setDuration(180).start();
+                    if (holder.itemView.hasFocus()) (row == tabRow ? tabCaption : genreCaption).setText(describe(previous.get(i)));
+                }
+            }
+        }
+        lastSeenEntry = null;
+        undoSeenRows.clear();
+        Toast.makeText(act, "Last seen action undone", Toast.LENGTH_SHORT).show();
     }
 
     // ---- poster rows --------------------------------------------------------------------------------------
@@ -864,11 +923,13 @@ final class FeedHome {
 
     private final class Tiles extends RecyclerView.Adapter<Tiles.Holder> {
         private final List<Feed.Entry> list;
+        private final List<Feed.Entry> candidates;
         private final int section;
         private final boolean ranked;
 
         Tiles(List<Feed.Entry> list, int section, boolean ranked) {
-            this.list = list;
+            this.candidates = new ArrayList<>(list);
+            this.list = ranked ? seenTitles.available(list, 10) : new ArrayList<>(list);
             this.section = section;
             this.ranked = ranked;
         }
@@ -950,8 +1011,31 @@ final class FeedHome {
             card.setOnClickListener(v -> {
                 int pos = h.getBindingAdapterPosition();
                 if (pos == RecyclerView.NO_POSITION) return;
-                watch(list.get(pos));
+                if (!ranked || !seenTitles.contains(list.get(pos))) watch(list.get(pos));
             });
+            if (ranked) {
+                card.setOnLongClickListener(v -> {
+                    int pos = h.getBindingAdapterPosition();
+                    if (pos == RecyclerView.NO_POSITION) return true;
+                    Feed.Entry entry = list.get(pos);
+                    if (seenTitles.contains(entry)) {
+                        menu(v, entry.title, new String[] {"Mark as unseen"}, new Runnable[] {() -> {
+                            seenTitles.unmark(entry);
+                            prefs.edit().putStringSet(seenPreference, seenTitles.saved()).apply();
+                            notifyItemChanged(pos);
+                        }});
+                    } else {
+                        List<String> labels = new ArrayList<>(Arrays.asList("Mark as seen", "Read more", act.getString(R.string.feed_open)));
+                        List<Runnable> actions = new ArrayList<>(Arrays.asList(() -> markSeen(entry), () -> showDetails(entry), () -> watch(entry)));
+                        if (lastSeenEntry != null) {
+                            labels.add("Undo last seen");
+                            actions.add(FeedHome.this::undoLastSeen);
+                        }
+                        menu(v, entry.title, labels.toArray(new String[0]), actions.toArray(new Runnable[0]));
+                    }
+                    return true;
+                });
+            }
             if (section == S_CONTINUE) {
                 // Hold OK: remove it from Continue watching until it is watched again.
                 card.setLongClickable(true);
@@ -959,7 +1043,7 @@ final class FeedHome {
                     int pos = h.getBindingAdapterPosition();
                     if (pos == RecyclerView.NO_POSITION) return true;
                     Feed.Entry e = list.get(pos);
-                    menu(e.title, new String[] {act.getString(R.string.feed_open), act.getString(R.string.feed_remove_continue)},
+                    menu(v, e.title, new String[] {act.getString(R.string.feed_open), act.getString(R.string.feed_remove_continue)},
                             new Runnable[] {() -> v.performClick(), () -> removeFromContinue(e, pos)});
                     return true;
                 });
@@ -984,6 +1068,19 @@ final class FeedHome {
             h.title.setText(e.title);
             h.title.setVisibility(View.VISIBLE);
             h.shade.setVisibility(View.VISIBLE);
+            if (ranked && seenTitles.contains(e)) {
+                // Exhausted pool: keep this slot's dimensions and focus; never redisplay a seen pick as new.
+                h.source = "";
+                h.title.setText("Seen · No more picks");
+                h.itemView.setContentDescription(e.title + ". Seen. No more picks. Hold OK to mark as unseen.");
+                h.rank.setVisibility(View.GONE);
+                h.tag.removeAllViews();
+                h.badge.setVisibility(View.GONE);
+                h.track.setVisibility(View.GONE);
+                h.progress.setVisibility(View.GONE);
+                return;
+            }
+            h.progress.setVisibility(View.VISIBLE);
             h.rank.setVisibility(ranked ? View.VISIBLE : View.GONE);
             h.rank.setText(String.valueOf(position + 1));
             h.tag.removeAllViews();
@@ -1007,6 +1104,30 @@ final class FeedHome {
                     h.shade.setVisibility(ranked ? View.VISIBLE : View.GONE);
                 }
             });
+        }
+
+        /** Replace only affected slots. No adapter rebuild, insertion, scrolling or focus jump. */
+        void replaceSeen(RecyclerView row) {
+            for (int i = 0; i < list.size(); i++) {
+                if (!seenTitles.contains(list.get(i))) continue;
+                Feed.Entry replacement = seenTitles.replacement(candidates, list);
+                if (replacement != null) list.set(i, replacement);
+                int slot = i;
+                RecyclerView.ViewHolder holder = row.findViewHolderForAdapterPosition(slot);
+                if (holder == null) { notifyItemChanged(slot); continue; }
+                View card = holder.itemView;
+                card.animate().cancel();
+                card.animate().alpha(0.25f).setDuration(120).withEndAction(() -> {
+                    if (row.getAdapter() != this) { card.setAlpha(1f); return; }
+                    notifyItemChanged(slot);
+                    card.animate().alpha(1f).setDuration(180).start();
+                    if (card.hasFocus()) {
+                        TextView caption = section == S_TAB_ROW ? tabCaption : genreCaption;
+                        caption.setText(seenTitles.contains(list.get(slot)) ? "Seen · No more recommendations available"
+                                : describe(list.get(slot)));
+                    }
+                }).start();
+            }
         }
 
         @Override
@@ -1293,7 +1414,7 @@ final class FeedHome {
     // ---- genres ------------------------------------------------------------------------------------------
 
     private void buildGenres() {
-        genres = Feed.genreRows(feed.tabs(), feed.pool(), drawer, GENRE_TOP, GENRE_TABS, GENRE_MIN);
+        genres = Feed.genreRows(feed.tabs(), feed.pool(), drawer, 300, GENRE_TABS, GENRE_MIN);
         genreNames.clear();
         genreNames.addAll(genres.keySet());
         boolean any = !genreNames.isEmpty();
@@ -1665,41 +1786,8 @@ final class FeedHome {
         }
     }
 
-    private void menu(String title, String[] labels, Runnable[] actions) {
-        Dialog dialog = new Dialog(act);
-        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
-        LinearLayout box = column();
-        box.setPadding(dp(18), dp(18), dp(18), dp(14));
-        GradientDrawable bg = rounded(0xF2171A22, dp(20));
-        bg.setStroke(Math.max(1, dp(1) / 2), 0x26FFFFFF);
-        box.setBackground(bg);
-        TextView head = text(13, 0x99FFFFFF, medium);
-        head.setText(title);
-        head.setAllCaps(true);
-        head.setLetterSpacing(0.12f);
-        head.setPadding(dp(10), 0, dp(10), dp(10));
-        box.addView(head, wrap());
-        for (int i = 0; i < labels.length; i++) {
-            TextView item = text(17, Color.WHITE, regular);
-            item.setText(labels[i]);
-            item.setFocusable(true);
-            item.setPadding(dp(14), dp(11), dp(14), dp(11));
-            item.setBackground(rounded(0x00000000, dp(12)));
-            item.setOnFocusChangeListener((v, has) -> {
-                v.setBackground(rounded(has ? 0xF2FFFFFF : 0x00000000, dp(12)));
-                ((TextView) v).setTextColor(has ? 0xFF0B0D12 : Color.WHITE);
-            });
-            Runnable run = actions[i];
-            item.setOnClickListener(v -> {
-                dialog.dismiss();
-                run.run();
-            });
-            box.addView(item, new LinearLayout.LayoutParams(dp(280), ViewGroup.LayoutParams.WRAP_CONTENT));
-        }
-        dialog.setContentView(box);
-        if (dialog.getWindow() != null) dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
-        dialog.show();
-        if (box.getChildCount() > 1) box.getChildAt(1).requestFocus();
+    private void menu(View anchor, String title, String[] labels, Runnable[] actions) {
+        HomeOptionsMenu.show(act, anchor, title, labels, actions, null);
     }
 
     private void launch(String pkg) {

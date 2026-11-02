@@ -200,6 +200,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private FeedHome feedHome;
     /** The INDmoney portfolio and markets chip beside the date, with the feed Home. */
     private InsightCard insightCard;
+    private TopBarOrder topBarOrder;
     private List<String> feedDock;
     private List<String> feedHidden;
     private View raceBar;
@@ -782,8 +783,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
         btnInputs = findViewById(R.id.btnInputs);
         View btnSettings = findViewById(R.id.btnSettings);
-        btnInputs.setOnClickListener(v -> showInputs());
-        btnWifi.setOnClickListener(v -> openNetworkPill());
+        btnInputs.setOnClickListener(v -> { if (topBarOrder == null || !topBarOrder.finishClick(v)) showInputs(); });
+        btnWifi.setOnClickListener(v -> { if (topBarOrder == null || !topBarOrder.finishClick(v)) openNetworkPill(); });
         btnVpn.setOnClickListener(v -> openVpnPill());
         btnWifi.setOnLongClickListener(v -> {
             open(systemIntent(Settings.ACTION_WIFI_SETTINGS));
@@ -795,6 +796,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             ((TextView) btnSettings).setCompoundDrawablesRelativeWithIntrinsicBounds(R.drawable.ic_home_settings_pill, 0, 0, 0);
         }
         btnSettings.setOnClickListener(v -> {
+            if (topBarOrder != null && topBarOrder.finishClick(v)) return;
             if (launcherSettingsButton) startActivityForResult(
                     new Intent(this, LauncherSettingsActivity.class), LAUNCHER_SETTINGS_REQUEST);
             else open(systemIntent(Settings.ACTION_SETTINGS));
@@ -862,6 +864,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         // jump to a tile far below when there is nothing in that direction.
         boolean rtlMenuBar = getResources().getBoolean(R.bool.rtl_menu_bar);
         View.OnKeyListener pillKeys = (v, keyCode, event) -> {
+            if (topBarOrder != null && topBarOrder.key(v, keyCode, event)) return true;
             if (event.getAction() != KeyEvent.ACTION_DOWN) return false;
             if (keyCode == KeyEvent.KEYCODE_DPAD_UP) return true;
             if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
@@ -873,7 +876,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 focusTile(singleRow ? lastFocused : lastFocused % COLUMNS);
                 return true;
             }
-            int firstButton = btnInputs.getVisibility() == View.VISIBLE ? R.id.btnInputs : firstTopButton().getId();
+            int firstButton = topBarOrder != null ? topBarOrder.first().getId()
+                    : btnInputs.getVisibility() == View.VISIBLE ? R.id.btnInputs : firstTopButton().getId();
             int leftButton = rtlMenuBar ? R.id.btnSettings : firstButton;
             int rightButton = rtlMenuBar ? firstButton : R.id.btnSettings;
             if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT && v.getId() == leftButton && insightCard != null && insightCard.focusable()) {
@@ -1279,6 +1283,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     @Override
     protected void onStop() {
+        if (topBarOrder != null) topBarOrder.stop();
         super.onStop();
         started = false;
         unregisterReceiver(timeReceiver);
@@ -1369,6 +1374,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
      */
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
+        if (topBarOrder != null && topBarOrder.movingKey(event)) return true;
         // Vendor keys (TCL Netflix button, 4062) never reach the key services, only the focused window.
         if (event.getKeyCode() >= 1000 && RemoteKeys.handle(this, event, homeAppKeys.get(event.getKeyCode()), null)) return true;
         if (handleSettingsKey(event)) return true;
@@ -2443,6 +2449,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     /** The first top-bar button after Inputs that is shown, in bar order (top_bar_apps, the network pill, ...); Settings is always there. */
     private View firstTopButton() {
+        if (topBarOrder != null) return topBarOrder.first();
         ViewGroup bar = findViewById(R.id.topButtons);
         for (int i = 0; i < bar.getChildCount(); i++) {
             View button = bar.getChildAt(i);
@@ -2562,7 +2569,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         lp.height = 0;
         lp.weight = 1;
         box.setLayoutParams(lp);
-        feedHome = new FeedHome(this, feed, () -> (btnInputs.getVisibility() == View.VISIBLE ? btnInputs : firstTopButton()).requestFocus(),
+        feedHome = new FeedHome(this, feed, () -> firstTopButton().requestFocus(),
                 handler, box, findViewById(R.id.feedBackdrop), findViewById(R.id.feedScrim), feedDock, feedHidden);
         // Focus was placed before this home existed (on a cold start, on the top bar): start on the drawer.
         box.post(() -> feedHome.focusDrawer());
@@ -2575,7 +2582,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         dl.weight = 0;
         dateColumn.setLayoutParams(dl);
         insightCard = new InsightCard(this, handler, (LinearLayout) findViewById(R.id.clock).getParent(),
-                () -> (btnInputs.getVisibility() == View.VISIBLE ? btnInputs : firstTopButton()).requestFocus(),
+                () -> firstTopButton().requestFocus(),
                 () -> feedHome.focusTop());
         feed.setInsightsListener(insightCard::update);
         // Liquid glass over a faint dark base on the top bar's buttons: the header's art behind them can be bright.
@@ -2583,6 +2590,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             findViewById(id).setBackgroundResource(R.drawable.pill_bg_feed);
         }
         bluetooth.setOnClickListener(v -> {
+            if (topBarOrder != null && topBarOrder.finishClick(v)) return;
             // Remotes & Accessories: Google TV's settings show it as a slice page, with no action of its own; the
             // Bluetooth action does not resolve on Google TV (a Sony BRAVIA BF1 answers it with nothing).
             Intent page = new Intent("android.settings.SLICE_SETTINGS")
@@ -2597,6 +2605,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 }
             }
         });
+        topBarOrder = new TopBarOrder(this, findViewById(R.id.topButtons), this::showSettingsMenu);
         // A shorter date beside the clock: "THU, 29 OCT".
         android.widget.TextClock date = findViewById(R.id.date);
         date.setFormat12Hour("EEE, d MMM");
@@ -3614,10 +3623,15 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     /** The header opens launcher settings directly; hold OK keeps the extra home actions available. */
     private void showSettingsMenu() {
+        showSettingsMenu(null);
+    }
+
+    private void showSettingsMenu(Runnable moveShortcut) {
         View anchor = findViewById(R.id.btnSettings);
         View panel = getLayoutInflater().inflate(R.layout.popup_inputs, root, false);
         LinearLayout rows = panel.findViewById(R.id.rows);
         PopupWindow popup = glassPopup(panel, (int) (200 * density));
+        if (moveShortcut != null) addSettingsMenuRow(rows, popup, R.string.feed_move, moveShortcut);
         if (!launcherSettingsButton) addSettingsMenuRow(rows, popup, R.string.launcher_settings, () -> startActivityForResult(
                 new Intent(this, LauncherSettingsActivity.class), LAUNCHER_SETTINGS_REQUEST));
         // Firmware that ships its own settings app next to the AOSP one (Xiaomi China is one): the
@@ -3630,8 +3644,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             });
         }
         if (moduleCards) addSettingsMenuRow(rows, popup, R.string.module_cards, this::showModuleCards);
-        if (dockRow) addSettingsMenuRow(rows, popup, R.string.dock_edit, this::startDockEdit);
-        addSettingsMenuRow(rows, popup, R.string.reorder, this::toggleReorder);
+        // The Feed layout's drawer has its own Move, so these two belong to the classic grid.
+        if (dockRow && feedHome == null) addSettingsMenuRow(rows, popup, R.string.dock_edit, this::startDockEdit);
+        if (feedHome == null) addSettingsMenuRow(rows, popup, R.string.reorder, this::toggleReorder);
         // A launcher may not restart the TV itself; the Home key helper can open the system power menu instead.
         if (HomeKeyService.canOpenPowerMenu()) addSettingsMenuRow(rows, popup, R.string.power_menu, HomeKeyService::openPowerMenu);
         panel.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);

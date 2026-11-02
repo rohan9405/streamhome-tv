@@ -46,7 +46,7 @@ final class InsightCard {
     private final Runnable turn = new Runnable() {
         @Override
         public void run() {
-            if (!chip.hasFocus()) slide();
+            if (!chip.hasFocus() && chip.getVisibility() == View.VISIBLE && chipViews().size() > 1) slide();
             handler.postDelayed(this, turnMs);
         }
     };
@@ -116,10 +116,11 @@ final class InsightCard {
         } catch (JSONException e) {
             data = new JSONObject();
         }
-        String status = data.optString("status");
-        boolean any = data.has("portfolio") || data.optJSONArray("markets") != null && data.optJSONArray("markets").length() > 0;
-        boolean on = data.optBoolean("chip", true) && (any || "reconnect".equals(status));
-        if (!on && chip.hasFocus()) chip.focusSearch(View.FOCUS_RIGHT);
+        boolean on = InsightRotation.visible(data);
+        if (!on && chip.hasFocus()) {
+            View next = chip.focusSearch(View.FOCUS_RIGHT);
+            if (next != null) next.requestFocus();
+        }
         chip.setVisibility(on ? View.VISIBLE : View.GONE);
         long ms = 1000L * Math.max(5, data.optInt("rotation", 30));
         if (ms != turnMs) {
@@ -153,28 +154,24 @@ final class InsightCard {
     private void paint() {
         boolean focused = chip.hasFocus();
         int plain = focused ? 0xFF0B0D12 : Color.WHITE;
-        JSONObject p = data.optJSONObject("portfolio");
-        JSONArray m = data.optJSONArray("markets");
-        if (p == null && (m == null || m.length() == 0)) {
+        java.util.List<JSONObject> views = chipViews();
+        if (views.isEmpty()) {
             label.setText(R.string.insight_indmoney);
             value.setText(R.string.insight_reconnect);
             value.setTextColor(plain);
             return;
         }
-        int views = (p != null ? 1 : 0) + (m == null ? 0 : m.length());
-        int at = step % Math.max(1, views);
-        JSONObject index = p != null && at == 0 || m == null ? null : m.optJSONObject(at - (p != null ? 1 : 0));
-        double c;
-        if (index != null) {
-            label.setText(indexName(index.optString("name")));
-            c = index.optDouble("change");
-            value.setText(level(index.optDouble("price")) + "   " + arrow(c) + pct(index.optDouble("pct")));
-        } else {
-            label.setText(R.string.insight_portfolio);
-            c = p.optDouble("change");
-            value.setText(arrow(c) + rupees(c) + "   " + pct(p.optDouble("pct")));
-        }
+        JSONObject item = views.get(Math.floorMod(step, views.size()));
+        boolean market = item.has("price");
+        label.setText(item.optString("chip_name"));
+        double c = item.optDouble("change");
+        value.setText((market ? level(item.optDouble("price")) : rupees(c))
+                + "   " + arrow(c) + pct(item.optDouble("pct")));
         value.setTextColor(focused ? (c < 0 ? 0xFFB3261E : 0xFF0F7B3F) : (c < 0 ? DOWN : UP));
+    }
+
+    private java.util.List<JSONObject> chipViews() {
+        return InsightRotation.views(data);
     }
 
     /** The details: each portfolio class's day and value, both indices, and when the figures are from. */

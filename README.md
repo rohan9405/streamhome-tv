@@ -73,7 +73,7 @@ YouTube gets its own treatment: recent Subscriptions and Recommended videos publ
 
 ### Read more, without leaving Home
 
-Hold **OK** on a title for its plot, tagline, cast, director or creators, runtime, seasons and episodes, language, release date and India's age rating where available. Details are fetched on demand from TMDB and cached for a week.
+Hold **OK** on a header title (or choose **Read more** from a recommendation’s long-press menu) for its plot, tagline, cast, director or creators, runtime, seasons and episodes, language, release date and India's age rating where available. Details are fetched on demand from TMDB and cached for a week.
 
 ![Read more: title information, plot and cast in a remote-friendly popup](docs/screens/read-more.jpg)
 
@@ -99,11 +99,11 @@ Your favourites stay on one line; the tiles shrink to fit. Hold **OK** on a favo
 
 ![Adding an app from the grid to favourites](docs/screens/apps.jpg)
 
-The top bar includes the clock, short date, refresh progress, Inputs, Wi-Fi, Bluetooth and Settings. Bluetooth opens the TV's **Remotes & Accessories** settings. Available input controls depend on the TV.
+The top bar includes the clock, short date, refresh progress, Inputs, Wi-Fi, Bluetooth and Settings. Hold OK on a shortcut and choose Move; Left / Right moves it, OK saves, and Back cancels. Wi-Fi opens the TV's network settings. Bluetooth opens the TV's **Remotes & Accessories** settings. Available input controls depend on the TV.
 
 ## Portfolio & markets (optional)
 
-One small chip beside the date cycles through **PORTFOLIO → NIFTY → SENSEX**, one view at a time, each rising in as the last one lifts away. It stops rotating while focused. Press **OK** for the expanded view; the information stays compact until you ask for more.
+One small chip beside the date cycles through **PORTFOLIO → MUTUAL FUNDS → EQUITY → US STOCKS → NIFTY → SENSEX**, one view at a time, each rising in as the last one lifts away. It stops rotating while focused. Press **OK** for the expanded view; the information stays compact until you ask for more.
 
 ![Portfolio and markets detail popup with fictional balances, daily movements and index quotes](docs/screens/portfolio.jpg)
 
@@ -118,7 +118,8 @@ Open **Apps → Feed** to customise the chip:
 | Setting | Choices |
 |---|---|
 | Insight chip | On / Off |
-| Portfolio | On / Off; Off omits the portfolio from display and subsequent holdings fetches, leaving only the indices |
+| Portfolio, Mutual Funds, Equity, US Stocks | Each view independently On / Off; holdings fetches stop when all four are off |
+| Nifty, Sensex | Each independently On / Off |
 | Rotate every | 5 / 10 / 20 / 30 / 60 seconds |
 
 ![Feed settings for the optional insight chip, portfolio visibility and rotation](docs/screens/insight-settings.jpg)

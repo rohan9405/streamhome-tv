@@ -12,10 +12,14 @@ Use the remote for everyday changes. The checked-in theme supplies defaults for 
 | Up from the drawer | Focus the header |
 | Left / Right in the header | Previous / next title |
 | OK on a title | Open its published link, with app-home fallback |
-| Hold OK on a title | Read more; Continue watching also offers local removal |
+| Hold OK on a recommendation | Mark as seen, Read more, or Open; seen titles are replaced in place |
+| Hold OK on the header | Read more |
+| Hold OK on Continue watching | Open or remove locally |
 | Focus a service or genre tab | Change that row |
 | Focus the insight chip, then OK | Portfolio/market details |
+| Hold OK on a top-bar shortcut | Move; Left / Right rearranges, OK saves, Back cancels |
 | Hold OK on Settings | Launcher options and module-card controls, as available |
+| Select Wi-Fi | The TV's network settings. Android 10 and later do not let launchers switch Wi-Fi or networks themselves |
 
 The Feed layout has its own responsive, one-line drawer and six-column Apps grid. The header turns every eight seconds, pauses while focused and shows a new selection on content refresh. These are implementation choices, not currently exposed as individual TV settings.
 
@@ -28,12 +32,13 @@ Open **Apps → Feed**.
 | Refresh now | Refresh recommendation rows; also shows source/refresh diagnostics |
 | TV listings permission | Requested when missing; needed for Watch Next and app-published rows |
 | Insight chip | On / Off; hides the top-bar chip when off |
-| Portfolio | On / Off; when off, omit portfolio data from Home and stop subsequent holdings requests |
-| Chip rotation | 10, 20, 30 or 60 seconds; pauses while focused |
+| Portfolio, Mutual Funds, Equity, US Stocks | Independent On / Off switches for each rotating view |
+| Nifty, Sensex | Independent On / Off switches |
+| Chip rotation | 5, 10, 20, 30 or 60 seconds; pauses while focused |
 
-An INDmoney connection is optional. The indices use the same connection even when Portfolio is off. Settings do not revoke the provider grant or erase historical caches. If the provider requires sign-in again, rerun `my-tv/indmoney-signin.py` and `my-tv/indmoney-pair.sh` from the computer.
+An INDmoney connection is optional. Portfolio → Mutual Funds → Equity → US Stocks → Nifty → Sensex rotate in that order, skipping disabled or unavailable views. The amount comes first, followed by the direction triangle and percentage. Holdings requests stop when Portfolio and all three asset-class views are off. Existing indices-only setups keep all holdings views off after upgrading. The indices use the same connection. Settings do not revoke the provider grant or erase historical caches. If the provider requires sign-in again, rerun `my-tv/indmoney-signin.py` and `my-tv/indmoney-pair.sh` from the computer.
 
-The chip is on Home; it is not a financial screensaver overlay. There are no separate per-index switches, amount-masking selector, watchlist editor or on-TV QR reconnect flow in this version.
+The chip is on Home; it is not a financial screensaver overlay. There is no amount-masking selector, watchlist editor or on-TV QR reconnect flow in this version.
 
 ## Ambient News settings
 
@@ -87,7 +92,7 @@ Remote-edited favourites are saved separately and take precedence over the theme
 
 ## General launcher settings
 
-Hold OK on Settings, then choose **Launcher settings**. The underlying launcher provides column count (4–7), rows below the dock (0–3), dock opacity (100/70/50/30), wallpaper selection, animations, advanced effects, Follow theme, default Home and TV settings. An optional Open on start choice appears only when configured.
+Hold OK on Settings, choose **Launcher settings**. The underlying launcher provides column count (4–7), rows below the dock (0–3), dock opacity (100/70/50/30), wallpaper selection, animations, advanced effects, Follow theme, default Home and TV settings. An optional Open on start choice appears only when configured.
 
 Some of these belong to the classic dock/grid mode. They do not resize the Feed drawer or change its six-column grid, replace its title backdrops or adjust its carousel timing. Keep that distinction when experimenting.
 
@@ -98,3 +103,11 @@ For every supported advanced key and its explanatory comments, see [config.xml](
 Use `my-tv/api-keys.sh` for TMDB, OMDb and optional TheNewsAPI keys. Use the INDmoney sign-in/pairing scripts for finance. Never put actual tokens in the theme, README, commands saved to Git, or screenshots.
 
 The README screenshots were captured from the current Android interface on an emulator, with a selected public catalogue, sample viewing progress, fictional financial figures and an illustrative news story. Sample app banners can differ from installed streaming apps. The device was not connected to a real portfolio for those captures. Keep raw captures and credentials out of `docs/screens/`; inspect public images before adding them.
+
+## Recommendations and seen history
+
+Platform recommendations use the installed app’s preview rows where available. Otherwise, TMDB supplies popular films and series available on that service in India, alternating series and films. Genre rows mix the drawer’s services in turn, each service’s candidates ordered by IMDb rating. Neither list has a release-date cutoff; these are discovery recommendations, not a service’s official chart or a list of new releases. The header has its own recent-release rules.
+
+Hold OK on a platform or genre recommendation and choose **Mark as seen**. Home saves the title for the current local profile and replaces it in the same card slot, with a short fade and focus retained. The same title is suppressed across these recommendation sections and restarts. A replacement comes from extra cached candidates; if none remain, the slot says **Seen · No more picks** until new candidates arrive. Holding OK on that exhausted slot allows **Mark as unseen**. After marking a title, a recommendation’s long-press menu also offers **Undo last seen** for the most recent action in the current Home session. This does not change a streaming service’s watch history, Continue watching or the header. Matching uses TMDB identity where available, with title, type and year as a fallback.
+
+StreamHome currently has one default local profile. Seen history is stored separately under that profile’s key; it does not imply that an account/profile picker is implemented.

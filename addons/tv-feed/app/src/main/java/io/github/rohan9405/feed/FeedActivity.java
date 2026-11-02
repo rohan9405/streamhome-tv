@@ -25,6 +25,7 @@ import java.util.Map;
  */
 public final class FeedActivity extends Activity {
     private TextView status;
+    private FeedSettingsUi settingsUi;
 
     @Override
     protected void onCreate(Bundle state) {
@@ -34,78 +35,10 @@ public final class FeedActivity extends Activity {
             return;
         }
 
-        float d = getResources().getDisplayMetrics().density;
-        LinearLayout col = new LinearLayout(this);
-        col.setOrientation(LinearLayout.VERTICAL);
-        int pad = (int) (48 * d);
-        col.setPadding(pad, (int) (32 * d), pad, pad);
-        col.setBackgroundColor(0xFF0E1117);
-
-        TextView title = text(32, 0xFFFFFFFF);
-        title.setText(R.string.app_name);
-        col.addView(title);
-
-        LinearLayout buttons = new LinearLayout(this);
-        buttons.setOrientation(LinearLayout.HORIZONTAL);
-        buttons.setGravity(Gravity.CENTER_VERTICAL);
-        buttons.setPadding(0, (int) (16 * d), 0, (int) (8 * d));
-        Button refresh = new Button(this);
-        refresh.setText(R.string.refresh);
-        refresh.setOnClickListener(v -> refresh());
-        buttons.addView(refresh);
-        if (checkSelfPermission(Refresher.READ_TV) != PackageManager.PERMISSION_GRANTED) {
-            Button grant = new Button(this);
-            grant.setText(R.string.grant);
-            grant.setOnClickListener(v -> requestPermissions(new String[] {Refresher.READ_TV}, 1));
-            buttons.addView(grant);
-        }
-        col.addView(buttons);
-
-        // Home's insight chip (INDmoney): on or off, the portfolio shown or only the indices, how often it turns.
-        TextView chipTitle = text(13, 0x99FFFFFF);
-        chipTitle.setText(R.string.chip_section);
-        chipTitle.setPadding(0, (int) (16 * d), 0, (int) (4 * d));
-        col.addView(chipTitle);
-        LinearLayout chipRow = new LinearLayout(this);
-        chipRow.setOrientation(LinearLayout.HORIZONTAL);
-        Button chip = new Button(this), portfolio = new Button(this), rotation = new Button(this);
-        Runnable label = () -> {
-            chip.setText(getString(R.string.chip_on, getString(Insights.chipOn(this) ? R.string.on : R.string.off)));
-            portfolio.setText(getString(R.string.chip_portfolio, getString(Insights.portfolioOn(this) ? R.string.on : R.string.off)));
-            rotation.setText(getString(R.string.chip_rotation, Insights.rotationSec(this)));
-        };
-        chip.setOnClickListener(v -> {
-            Insights.settings(this).edit().putBoolean("chip", !Insights.chipOn(this)).apply();
-            label.run();
-            Insights.changed(this);
-        });
-        portfolio.setOnClickListener(v -> {
-            Insights.settings(this).edit().putBoolean("portfolio", !Insights.portfolioOn(this)).apply();
-            label.run();
-            Insights.changed(this);
-        });
-        rotation.setOnClickListener(v -> {
-            int i = 0;
-            while (i < Insights.ROTATIONS.length && Insights.ROTATIONS[i] != Insights.rotationSec(this)) i++;
-            Insights.settings(this).edit().putInt("rotation", Insights.ROTATIONS[(i + 1) % Insights.ROTATIONS.length]).apply();
-            label.run();
-            Insights.changed(this);
-        });
-        label.run();
-        chipRow.addView(chip);
-        chipRow.addView(portfolio);
-        chipRow.addView(rotation);
-        col.addView(chipRow);
-
-        status = text(15, 0xCCFFFFFF);
-        status.setPadding(0, (int) (16 * d), 0, 0);
-        status.setLineSpacing(4 * d, 1f);
-        col.addView(status);
-
-        ScrollView scroll = new ScrollView(this);
-        scroll.addView(col);
-        setContentView(scroll);
-        refresh.requestFocus();
+        settingsUi = new FeedSettingsUi(this, this::refresh);
+        status = settingsUi.diagnostics;
+        setContentView(settingsUi.root);
+        settingsUi.focusDefault();
         show();
     }
 
@@ -116,12 +49,14 @@ public final class FeedActivity extends Activity {
 
     private void refresh() {
         status.setText("Refreshing…");
+        settingsUi.refreshing();
         Refresher.kick(this, () -> runOnUiThread(this::show));
     }
 
     private void show() {
         if (isDestroyed()) return;
         Store.Snapshot s = Store.get(this);
+        settingsUi.update(s);
         StringBuilder b = new StringBuilder();
         b.append("Reading TV rows: ").append(checkSelfPermission(Refresher.READ_TV)
                 == PackageManager.PERMISSION_GRANTED ? "allowed" : "not allowed yet").append('\n');
@@ -150,7 +85,7 @@ public final class FeedActivity extends Activity {
         for (Item i : s.items) {
             String name = Item.CONTINUE.equals(i.section) ? "Continue watching"
                     : (Item.HERO.equals(i.section) ? "Header, new in 14 days: "
-                    : Item.POOL.equals(i.section) ? "Genre pool: " : "Top 10 tab: ") + label(pm, i.tab, false);
+                    : Item.POOL.equals(i.section) ? "Genre pool: " : "Top 10 candidates: ") + label(pm, i.tab, false);
             int[] n = rows.get(name);
             if (n == null) rows.put(name, n = new int[2]);
             n[0]++;
