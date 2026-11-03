@@ -71,7 +71,7 @@ Each has a free tier, and they only need the ones for the extras they chose.
 | Extra | Key | Where to get it | Without it |
 |---|---|---|---|
 | IMDb ratings | OMDb API key | [omdbapi.com/apikey.aspx](https://www.omdbapi.com/apikey.aspx) | Only new catalogue titles get IMDb's rating; app tiles have none |
-| New releases, genres, Read more | TMDB API Read Access Token | [themoviedb.org/settings/api](https://www.themoviedb.org/settings/api) | The header uses JustWatch; genres and Read more say they need TMDB |
+| New releases, genres, search, title logos, Read more | TMDB API Read Access Token | [themoviedb.org/settings/api](https://www.themoviedb.org/settings/api) | The header uses JustWatch and written titles; genres, search and Read more say they need TMDB |
 | Portfolio and market chip | Their INDmoney sign-in | `python3 my-tv/indmoney-signin.py` (INDmoney's own page) | The chip stays hidden |
 | A second news source | TheNewsAPI token | [thenewsapi.com](https://www.thenewsapi.com/) | Google News alone, which needs no key |
 

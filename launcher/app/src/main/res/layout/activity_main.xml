@@ -362,6 +362,15 @@
                 android:clipToPadding="false"
                 android:orientation="horizontal">
 
+                <!-- feed_package (FeedHome): search across the streaming apps. -->
+                <TextView
+                    android:id="@+id/btnSearch"
+                    style="@style/TopButtonIcon"
+                    android:visibility="gone"
+                    android:contentDescription="@string/feed_search"
+                    android:drawableStart="@drawable/ic_search"
+                    android:nextFocusDown="@+id/grid" />
+
                 <TextView
                     android:id="@+id/btnInputs"
                     style="@style/TopButton"

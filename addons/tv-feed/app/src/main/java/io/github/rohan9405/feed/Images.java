@@ -22,8 +22,11 @@ import java.util.regex.Pattern;
 final class Images {
     static final int TILE_W = 400;
     static final int BACKDROP_W = 1280;
+    static final int LOGO_W = 640;
+    /** A logo's average brightness (0 to 255) below which it would vanish on a dark backdrop. */
+    static final int LOGO_MIN_BRIGHTNESS = 70;
     /** The only file names FeedProvider will open. */
-    static final Pattern NAME = Pattern.compile("[0-9a-f]{16}-[tb]\\.jpg");
+    static final Pattern NAME = Pattern.compile("[0-9a-f]{16}-([tb]\\.jpg|l\\.png)");
     private static final int MAX_BYTES = 6 * 1024 * 1024;
 
     private Images() {
@@ -56,6 +59,46 @@ final class Images {
         } catch (IOException | RuntimeException e) {
             return "";
         }
+    }
+
+    /**
+     * A title's logo, kept with its transparency; empty when it cannot be had or is too dark to read over a backdrop,
+     * and the header then writes the title as text.
+     */
+    static String cacheLogo(Context ctx, String source) {
+        if (source == null || source.isEmpty()) return "";
+        String name = hash(source) + "-l.png";
+        File f = new File(dir(ctx), name);
+        if (f.length() > 0) return name;
+        try {
+            Bitmap b = decode(load(ctx, source), LOGO_W);
+            if (b == null) return "";
+            try {
+                int[] pixels = new int[b.getWidth() * b.getHeight()];
+                b.getPixels(pixels, 0, b.getWidth(), 0, 0, b.getWidth(), b.getHeight());
+                if (tooDark(pixels)) return "";
+                File tmp = new File(f.getPath() + ".tmp");
+                try (FileOutputStream out = new FileOutputStream(tmp)) {
+                    b.compress(Bitmap.CompressFormat.PNG, 100, out);
+                }
+                return tmp.renameTo(f) ? name : "";
+            } finally {
+                b.recycle();
+            }
+        } catch (IOException | RuntimeException e) {
+            return "";
+        }
+    }
+
+    /** The visible pixels' average brightness is under {@value #LOGO_MIN_BRIGHTNESS}; true with nothing visible. */
+    static boolean tooDark(int[] argb) {
+        long sum = 0, seen = 0;
+        for (int p : argb) {
+            if ((p >>> 24) < 128) continue;
+            sum += (299L * ((p >> 16) & 255) + 587L * ((p >> 8) & 255) + 114L * (p & 255)) / 1000;
+            seen++;
+        }
+        return seen == 0 || sum / seen < LOGO_MIN_BRIGHTNESS;
     }
 
     /** Deletes the files no item refers to any more. */

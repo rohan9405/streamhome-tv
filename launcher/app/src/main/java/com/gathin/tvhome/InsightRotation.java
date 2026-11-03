@@ -7,6 +7,8 @@ import org.json.JSONObject;
 /** Available finance views in rotation order; visibility never changes how the total is calculated. */
 final class InsightRotation {
     static boolean visible(JSONObject data) {
+        JSONArray cricket = data.optJSONArray("cricket");
+        if (cricket != null && cricket.length() > 0) return true;
         if (!data.optBoolean("chip", true)) return false;
         JSONObject enabled = data.optJSONObject("views");
         boolean anyEnabled = enabled == null;
@@ -17,6 +19,47 @@ final class InsightRotation {
 
     /** Enabled, available views only; absent asset classes never appear as zero. */
     static java.util.List<JSONObject> views(JSONObject data) {
+        return order(data.optBoolean("chip", true) ? finance(data) : new java.util.ArrayList<>(), cricket(data),
+                data.optBoolean("cricket_together", true));
+    }
+
+    /** On the one chip: every match, then every finance view; or, with together off, one of each in turn. */
+    static java.util.List<JSONObject> order(java.util.List<JSONObject> finance, java.util.List<JSONObject> cricket, boolean together) {
+        java.util.List<JSONObject> out = new java.util.ArrayList<>();
+        if (together) {
+            out.addAll(cricket);
+            out.addAll(finance);
+            return out;
+        }
+        for (int i = 0; i < Math.max(finance.size(), cricket.size()); i++) {
+            if (i < finance.size()) out.add(finance.get(i));
+            if (i < cricket.size()) out.add(cricket.get(i));
+        }
+        return out;
+    }
+
+    private static java.util.List<JSONObject> cricket(JSONObject data) {
+        java.util.List<JSONObject> out = new java.util.ArrayList<>();
+        JSONArray matches = data.optJSONArray("cricket");
+        for (int i = 0; matches != null && i < matches.length(); i++) {
+            JSONObject m = matches.optJSONObject(i);
+            if (m != null) out.add(m);
+        }
+        return out;
+    }
+
+    static boolean isCricket(JSONObject view) {
+        return view.has("a_abbr");
+    }
+
+    /** "IND 187/4 (16.2 ov) v AUS", "NZ v IND", or how a finished match ended. */
+    static String cricketValue(JSONObject m) {
+        if ("result".equals(m.optString("state")) && !m.optString("summary").isEmpty()) return m.optString("summary");
+        String a = (m.optString("a_abbr") + " " + m.optString("a_score")).trim(), b = (m.optString("b_abbr") + " " + m.optString("b_score")).trim();
+        return a + " v " + b;
+    }
+
+    private static java.util.List<JSONObject> finance(JSONObject data) {
         java.util.List<JSONObject> out = new java.util.ArrayList<>();
         JSONObject enabled = data.optJSONObject("views");
         JSONObject p = data.optJSONObject("portfolio");

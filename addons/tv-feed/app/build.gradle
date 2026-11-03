@@ -31,6 +31,7 @@ android {
 }
 
 dependencies {
+    implementation 'com.google.zxing:core:3.5.3'
     // Test only (never in the APK): plain JVM tests, src/test.
     testImplementation 'junit:junit:4.13.2'
     // org.json is Android's own at runtime; the JVM tests need a real one to parse the rating cache's answers.

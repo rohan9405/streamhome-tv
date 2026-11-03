@@ -71,6 +71,18 @@ For streaming services, the header selects up to 15 titles: five top picks and t
 
 YouTube gets its own treatment: recent Subscriptions and Recommended videos published to the TV, then Trending. These are the rows YouTube exposes to Android TV, not a copy of its complete in-app feed.
 
+With a TMDB token, header titles show their own logo where TMDB has a usable one, and the written title otherwise. Apps → Feed → Header turns logos off.
+
+### Search across your apps
+
+**Search** in the top bar looks for films and shows across your streaming apps. Each result is a picture and title with the logos of the installed apps it streams on in India. Press **OK** to open it in your first app that has it. Hold **OK** for **Play** (one line per app when it is on several) and **Read more**, which includes the IMDb rating. Titles on none of your apps stay in the results, marked **Not on your apps**.
+
+**Type on phone** on the search screen shows a QR code and a PIN. Scan it with a phone on the same Wi-Fi, type the title and it appears on the TV.
+
+### Cricket on the chip (optional)
+
+Apps → Feed → Cricket: choose your countries and IPL teams, then turn it on. Up to three of their matches (live, then upcoming, then recent results) share the chip beside the clock, each for 5, 10 or 15 seconds. By default all the matches show, then the finance views; turn off **Keep matches together** for one of each in turn. Press **OK** on the chip for both sides' scores. It is off until you turn it on. Scores come from ESPN's public scoreboard, which is unofficial and can change without notice, and only list matches close to today.
+
 ### Read more, without leaving Home
 
 Hold **OK** on a header title (or choose **Read more** from a recommendation’s long-press menu) for its plot, tagline, cast, director or creators, runtime, seasons and episodes, language, release date and India's age rating where available. Details are fetched on demand from TMDB and cached for a week.
@@ -167,11 +179,15 @@ StreamHome works with **no keys at all**: Home, your apps, Continue watching and
 |---|---|---|---|---|
 | Streaming apps' own rows | Nothing (TV listings permission) | — | — | Feed screen |
 | New releases, genres, Read more | TMDB API Read Access Token | Yes | Header uses JustWatch; genres off; Read more says it needs TMDB | Feed screen, Read more popup |
+| Search, header title logos | The same TMDB token | Yes | Search says it needs TMDB; the header writes titles as text | Search screen |
+| Cricket scores | Nothing (ESPN's public scoreboard, unofficial) | — | Off until you choose teams | — |
 | IMDb ratings | OMDb API key | Yes, 1,000 a day | Only new catalogue titles get IMDb's rating | Feed screen |
 | Title pages in apps | Nothing (JustWatch) | — | — | — |
 | Portfolio and markets chip | Your INDmoney sign-in | Free account | Chip hidden | Feed screen; chip reads "Reconnect" if INDmoney asks again |
 | Ambient News: Google News | Nothing | — | — | Ambient News settings |
 | Ambient News: TheNewsAPI | TheNewsAPI token | Yes, 100 a day | Google News alone | Ambient News settings |
+
+You can also add the TMDB token and OMDb key from a phone: Apps → Feed → Phone page shows a QR code and a PIN. The page runs on the TV, for its own Wi-Fi only, only while that screen is open and for ten minutes at most; five wrong PINs close it. It uses plain HTTP, so what you type crosses your home network unencrypted: use a Wi-Fi network you trust, and the computer route otherwise.
 
 ```bash
 my-tv/api-keys.sh save tmdb      # or omdb, news: paste once, it is checked
@@ -335,7 +351,7 @@ Your own sign-in and keys stay in private app storage and the local setup direct
 | Component | Access and purpose |
 |---|---|
 | Launcher | Offline UI; device/remote capabilities depend on enabled configuration |
-| Feed | Internet for content, artwork, ratings and optional INDmoney; TV listings for published recommendations and Watch Next |
+| Feed | Internet for content, artwork, ratings, search, optional cricket and optional INDmoney; what you type in Search goes to TMDB, nothing else does; a local web server only while the phone page is on screen; TV listings for published recommendations and Watch Next |
 | Ambient News | Internet, display-over-other-apps, foreground service and boot receiver for screensaver stories |
 | Original Home | No requested permissions; opens an available stock Home app |
 
@@ -361,7 +377,7 @@ No ads, sponsored rows or app analytics are added by this project. Connected fea
 - Portfolio figures and indices are snapshots with different source timestamps, not a continuously streaming trading terminal. Missing asset classes are omitted.
 - INDmoney can require renewed sign-in. The current recovery path uses the computer scripts, not a TV QR code.
 - Ambient News depends on Android overlay/screensaver behaviour, usable publisher photos and connector availability. Google News page parsing can break after upstream changes.
-- Drip spending, cricket cards and financial insights on the screensaver are not implemented here. Today's finance feature is the Home insight chip and its detail popup.
+- Drip spending, and cricket or financial cards on the screensaver, are not implemented here. Finance and cricket live on the Home chip and its detail popup.
 
 ## Support
 

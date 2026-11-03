@@ -2586,9 +2586,14 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 () -> feedHome.focusTop());
         feed.setInsightsListener(insightCard::update);
         // Liquid glass over a faint dark base on the top bar's buttons: the header's art behind them can be bright.
-        for (int id : new int[] {R.id.btnInputs, R.id.btnWifi, R.id.btnBluetooth, R.id.btnSettings}) {
+        for (int id : new int[] {R.id.btnSearch, R.id.btnInputs, R.id.btnWifi, R.id.btnBluetooth, R.id.btnSettings}) {
             findViewById(id).setBackgroundResource(R.drawable.pill_bg_feed);
         }
+        View search = findViewById(R.id.btnSearch);
+        search.setVisibility(View.VISIBLE);
+        search.setOnClickListener(v -> {
+            if (topBarOrder == null || !topBarOrder.finishClick(v)) feedHome.openSearch();
+        });
         bluetooth.setOnClickListener(v -> {
             if (topBarOrder != null && topBarOrder.finishClick(v)) return;
             // Remotes & Accessories: Google TV's settings show it as a slice page, with no action of its own; the

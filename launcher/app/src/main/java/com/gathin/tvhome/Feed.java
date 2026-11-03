@@ -42,7 +42,7 @@ final class Feed {
     /** Never in the header: its rows are videos, not releases. */
     static final String YOUTUBE = "com.google.android.youtube.tv";
     private static final String[] COLUMNS = {"row", "row_order", "title", "subtitle", "rating", "progress",
-            "poster", "backdrop", "intent", "package", "section", "tab", "overview", "kind", "year", "genre", "plain_art", "engaged", "released", "tmdb"};
+            "poster", "backdrop", "intent", "package", "section", "tab", "overview", "kind", "year", "genre", "plain_art", "engaged", "released", "tmdb", "logo"};
 
     /** One tile. */
     static final class Entry {
@@ -57,6 +57,12 @@ final class Feed {
         String released = "";
         /** "movie:123" or "tv:456": the TMDB title Read more asks about; empty when unknown. */
         String tmdb = "";
+        /** The header's title logo, with transparency; empty: the header writes the title. */
+        String logo = "";
+        /** Search: every app here it streams on, the one it opens in first. */
+        List<String> services = Collections.emptyList();
+        /** Search: where its picture is, until the add-on has fetched it (see {@link #art}). */
+        String artSource = "";
         final int progress, order;
 
         Entry(String section, String tab, int order, String title, String subtitle, String rating, int progress,
@@ -94,6 +100,7 @@ final class Feed {
     }
 
     private final Context ctx;
+    private final String pkg;
     private final String authority;
     private final Uri uri;
     private final Handler main;
@@ -128,8 +135,9 @@ final class Feed {
     private Map<String, List<Entry>> pool = Collections.emptyMap();
     private long refreshed;
 
-    private Feed(Context ctx, String authority, Handler main, Runnable onChange) {
+    private Feed(Context ctx, String pkg, String authority, Handler main, Runnable onChange) {
         this.ctx = ctx;
+        this.pkg = pkg;
         this.authority = authority;
         this.uri = new Uri.Builder().scheme(ContentResolver.SCHEME_CONTENT).authority(authority).appendPath("items").build();
         this.main = main;
@@ -166,7 +174,7 @@ final class Feed {
             if (authority == null || authority.trim().isEmpty()) return null;
             ProviderInfo provider = pm.resolveContentProvider(authority.trim(), 0);
             if (provider == null || !pkg.trim().equals(provider.packageName)) return null;
-            return new Feed(ctx, authority.trim(), main, onChange);
+            return new Feed(ctx, pkg.trim(), authority.trim(), main, onChange);
         } catch (PackageManager.NameNotFoundException e) {
             return null;
         }
@@ -193,11 +201,15 @@ final class Feed {
 
     /** The add-on's insights (it fetches them when they are old); an add-on without them answers nothing. */
     private void readInsights() {
+        readInsights(insightsUri);
+    }
+
+    private void readInsights(Uri asked) {
         if (insightsListener == null) return;
         try {
             io.execute(() -> {
                 String json;
-                try (Cursor c = ctx.getContentResolver().query(insightsUri, null, null, null, null)) {
+                try (Cursor c = ctx.getContentResolver().query(asked, null, null, null, null)) {
                     if (c == null || !c.moveToFirst()) return;
                     json = s(c, "json");
                 } catch (RuntimeException gone) {
@@ -235,6 +247,16 @@ final class Feed {
         }
     }
 
+    /** While Home shows, the add-on is asked each minute whether the chip's figures are due; it fetches only when they are. */
+    private final Runnable pollInsights = new Runnable() {
+        @Override
+        public void run() {
+            if (!watching) return;
+            readInsights(insightsUri.buildUpon().appendQueryParameter("poll", "1").build());
+            main.postDelayed(this, 60_000);
+        }
+    };
+
     void start() {
         if (!watching) {
             try {
@@ -249,9 +271,12 @@ final class Feed {
         read();
         readStatus();
         readInsights();
+        main.removeCallbacks(pollInsights);
+        main.postDelayed(pollInsights, 60_000);
     }
 
     void stop() {
+        main.removeCallbacks(pollInsights);
         if (watching) {
             ctx.getContentResolver().unregisterContentObserver(observer);
             ctx.getContentResolver().unregisterContentObserver(statusObserver);
@@ -308,6 +333,7 @@ final class Feed {
                         entries.get(entries.size() - 1).engaged = ec < 0 || c.isNull(ec) ? 0 : c.getLong(ec);
                         entries.get(entries.size() - 1).released = s(c, "released");
                         entries.get(entries.size() - 1).tmdb = s(c, "tmdb");
+                        entries.get(entries.size() - 1).logo = s(c, "logo");
                     }
                 } catch (RuntimeException gone) {
                     return;
@@ -526,8 +552,11 @@ final class Feed {
      * Read more: the title's cast, crew and facts, which the add-on fetches when asked (a second or two the first
      * time). Column -> value on the main thread, or null when it has none or is too old to know the question.
      */
-    void details(String tmdb, Consumer<Map<String, String>> onDone) {
-        Uri q = uri.buildUpon().path("details").appendQueryParameter("tmdb", tmdb).build();
+    void details(String tmdb, String titleWithoutRating, String year, Consumer<Map<String, String>> onDone) {
+        Uri.Builder b = uri.buildUpon().path("details").appendQueryParameter("tmdb", tmdb);
+        // A title Home has no rating for: the add-on looks one up too.
+        if (titleWithoutRating != null) b.appendQueryParameter("title", titleWithoutRating).appendQueryParameter("year", year);
+        Uri q = b.build();
         try {
             io.execute(() -> {
                 Map<String, String> out = null;
@@ -575,7 +604,148 @@ final class Feed {
         }
     }
 
+    /** What a search found, on the main thread. */
+    interface SearchListener {
+        /** {@code error} is "tmdb_missing", "tmdb_refused" or "offline"; empty with the titles found. */
+        void onResults(List<Entry> found, String error);
+    }
+
+    /** Asks the add-on (TMDB) for titles matching the words; Home itself stays offline. */
+    void search(String words, List<String> order, java.util.Set<String> installed, SearchListener onDone) {
+        Uri q = uri.buildUpon().path("search").appendQueryParameter("q", words).build();
+        try {
+            io.execute(() -> {
+                List<Entry> found = new ArrayList<>();
+                String error = "offline";
+                try (Cursor c = ctx.getContentResolver().query(q, null, null, null, null)) {
+                    if (c != null) {
+                        error = "";
+                        while (c.moveToNext()) {
+                            if (c.getColumnIndex("error") >= 0) {
+                                error = s(c, "error");
+                                break;
+                            }
+                            List<String> apps = rankServices(s(c, "services"), order, installed);
+                            String pkg = apps.isEmpty() ? "" : apps.get(0);
+                            Entry e = new Entry("search", pkg, 0, s(c, "title"), "", "", -1, "", "",
+                                    pkg.isEmpty() ? "" : launchIntent(pkg), pkg, s(c, "overview"), s(c, "kind"), s(c, "year"), s(c, "genre"));
+                            e.tmdb = s(c, "tmdb");
+                            e.artSource = s(c, "art");
+                            e.services = apps;
+                            e.plainArt = true;
+                            found.add(e);
+                        }
+                    }
+                } catch (RuntimeException gone) {
+                    // The add-on went away, or is too old to search.
+                }
+                List<Entry> ranked = streamableFirst(found);
+                String why = error;
+                main.post(() -> onDone.onResults(ranked, why));
+            });
+        } catch (RejectedExecutionException shutDown) {
+            // Home is being destroyed.
+        }
+    }
+
+    /** Opens the add-on's QR code and PIN screen, for typing a search on a phone. False when the add-on has none. */
+    boolean openPhoneSearch() {
+        try {
+            ctx.startActivity(new Intent().setClassName(pkg, pkg + ".PhoneActivity").putExtra("mode", "search")
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+            return true;
+        } catch (RuntimeException tooOld) {
+            return false;
+        }
+    }
+
+    /** Words typed on the phone page and not yet taken, on the main thread; nothing is called when there are none. */
+    void takePhoneWords(Consumer<String> onWords) {
+        Uri q = uri.buildUpon().path("phone_words").build();
+        try {
+            io.execute(() -> {
+                String words = "";
+                try (Cursor c = ctx.getContentResolver().query(q, null, null, null, null)) {
+                    if (c != null && c.moveToFirst()) words = s(c, "words");
+                } catch (RuntimeException gone) {
+                    return;
+                }
+                String found = words;
+                if (!found.isEmpty()) main.post(() -> onWords.accept(found));
+            });
+        } catch (RejectedExecutionException shutDown) {
+            // Home is being destroyed.
+        }
+    }
+
+    /** The same title opening in another of its apps. */
+    static Entry on(Entry e, String pkg) {
+        Entry o = new Entry(e.section, pkg, e.order, e.title, e.subtitle, e.rating, e.progress, e.poster, e.backdrop,
+                launchIntent(pkg), pkg, e.overview, e.kind, e.year, e.genre);
+        o.tmdb = e.tmdb;
+        o.artSource = e.artSource;
+        o.services = e.services;
+        o.plainArt = e.plainArt;
+        return o;
+    }
+
+    /** Like the add-on's catalogue titles: {@link #watch} looks the title's own page up, else this start screen. */
+    private static String launchIntent(String pkg) {
+        return "intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LEANBACK_LAUNCHER;"
+                + "package=" + pkg + ";end";
+    }
+
+    /** "a,b,c" as the apps installed here, the drawer's first and in drawer order. */
+    static List<String> rankServices(String services, List<String> order, java.util.Set<String> installed) {
+        List<String> all = new ArrayList<>();
+        for (String pkg : services.split(",")) if (installed.contains(pkg) && !all.contains(pkg)) all.add(pkg);
+        List<String> out = new ArrayList<>();
+        for (String pkg : order) if (all.contains(pkg)) out.add(pkg);
+        for (String pkg : all) if (!out.contains(pkg)) out.add(pkg);
+        return out;
+    }
+
+    /** What can be watched here first, each group keeping TMDB's best-match order. */
+    static List<Entry> streamableFirst(List<Entry> found) {
+        List<Entry> out = new ArrayList<>();
+        for (Entry e : found) if (!e.pkg.isEmpty()) out.add(e);
+        for (Entry e : found) if (e.pkg.isEmpty()) out.add(e);
+        return out;
+    }
+
+    /** A search card's picture: the add-on fetches it, and Home decodes it from the add-on's provider as usual. */
+    void art(Entry e, int widthPx, Consumer<Bitmap> onLoaded) {
+        if (e.artSource.isEmpty()) {
+            onLoaded.accept(null);
+            return;
+        }
+        Uri q = uri.buildUpon().path("art").appendQueryParameter("source", e.artSource).build();
+        try {
+            io.execute(() -> {
+                String image = "";
+                try (Cursor c = ctx.getContentResolver().query(q, null, null, null, null)) {
+                    if (c != null && c.moveToFirst()) image = s(c, "image");
+                } catch (RuntimeException gone) {
+                    // The card keeps its plain background.
+                }
+                String found = image;
+                main.post(() -> loadArt(found, widthPx, onLoaded));
+            });
+        } catch (RejectedExecutionException shutDown) {
+            onLoaded.accept(null);
+        }
+    }
+
+    /** A title's logo, with its transparency; onLoaded on the main thread, null when none. */
+    void loadLogo(String source, int widthPx, Consumer<Bitmap> onLoaded) {
+        load(source, widthPx, Bitmap.Config.ARGB_8888, onLoaded);
+    }
+
     void loadArt(String source, int widthPx, Consumer<Bitmap> onLoaded) {
+        load(source, widthPx, Bitmap.Config.RGB_565, onLoaded);
+    }
+
+    private void load(String source, int widthPx, Bitmap.Config config, Consumer<Bitmap> onLoaded) {
         if (!ours(source)) {
             onLoaded.accept(null);
             return;
@@ -588,7 +758,7 @@ final class Feed {
         }
         try {
             io.execute(() -> {
-                Bitmap b = decode(Uri.parse(source), widthPx);
+                Bitmap b = decode(Uri.parse(source), widthPx, config);
                 main.post(() -> {
                     if (b != null) art.put(key, b);
                     onLoaded.accept(b);
@@ -606,7 +776,7 @@ final class Feed {
         return ContentResolver.SCHEME_CONTENT.equals(u.getScheme()) && authority.equals(u.getAuthority());
     }
 
-    private Bitmap decode(Uri u, int widthPx) {
+    private Bitmap decode(Uri u, int widthPx, Bitmap.Config config) {
         try {
             BitmapFactory.Options o = new BitmapFactory.Options();
             o.inJustDecodeBounds = true;
@@ -618,7 +788,7 @@ final class Feed {
             while (o.outWidth / (sample * 2) >= widthPx) sample *= 2;
             BitmapFactory.Options d = new BitmapFactory.Options();
             d.inSampleSize = sample;
-            d.inPreferredConfig = Bitmap.Config.RGB_565;
+            d.inPreferredConfig = config;
             try (InputStream in = ctx.getContentResolver().openInputStream(u)) {
                 return BitmapFactory.decodeStream(in, null, d);
             }

@@ -53,7 +53,7 @@ final class TopBarOrder {
         for (int i = 0; i < bar.getChildCount(); i++) {
             View v = bar.getChildAt(i);
             int id = v.getId();
-            if (id == R.id.btnInputs || id == R.id.btnWifi || id == R.id.btnBluetooth || id == R.id.btnSettings) out.add(v);
+            if (id == R.id.btnSearch || id == R.id.btnInputs || id == R.id.btnWifi || id == R.id.btnBluetooth || id == R.id.btnSettings) out.add(v);
         }
         return out;
     }

@@ -35,6 +35,7 @@ final class Tmdb {
             FIXED_MS = 30 * 24 * HOUR_MS;
     private static final String[] HOSTS = {"api.tmdb.org", "api.themoviedb.org"};
     static final String IMAGES = "https://image.tmdb.org/t/p/";
+    private static final int SEARCH_RESULTS = 12;
 
     /** One film or series. */
     static final class Title {
@@ -51,6 +52,8 @@ final class Tmdb {
         String overview = "";
         String backdrop = "";    // full image URL, 16:9
         double popularity;
+        /** Search: the packages of the apps it streams on here, in TMDB's order. */
+        List<String> services = new ArrayList<>();
     }
 
     /** Read more's facts about one title; "" or 0 where TMDB has none. */
@@ -215,6 +218,93 @@ final class Tmdb {
             if (n != null && !n.isEmpty() && !names.contains(n)) names.add(n);
         }
         return android.text.TextUtils.join(", ", names);
+    }
+
+    /** The title's logo as an image URL, for the header, kept a month; empty when TMDB has none we can use. */
+    String logo(String kindAndId) {
+        if (kindAndId == null || !kindAndId.matches("(movie|tv):\\d+")) return "";
+        JSONObject o = get("/3/" + kindAndId.replace(':', '/') + "/images?include_image_language=en,hi,null", FIXED_MS);
+        return pickLogo(o);
+    }
+
+    /** English first, then Hindi, then one with no language; PNG only (TMDB also has SVGs, which Android cannot decode). */
+    static String pickLogo(JSONObject images) {
+        JSONArray logos = images == null ? null : images.optJSONArray("logos");
+        for (String language : new String[] {"en", "hi", ""}) {
+            for (int i = 0; logos != null && i < logos.length(); i++) {
+                JSONObject l = logos.optJSONObject(i);
+                if (l == null || !language.equals(l.isNull("iso_639_1") ? "" : l.optString("iso_639_1"))) continue;
+                String path = l.optString("file_path");
+                if (path.endsWith(".png")) return IMAGES + "w500" + path;
+            }
+        }
+        return "";
+    }
+
+    /**
+     * Films and series matching the words, TMDB's best match first, each with the apps it streams on here; people are
+     * left out. Null when TMDB could not be reached. Every answer is kept, so typing the same words again asks nothing.
+     */
+    List<Title> search(String words) {
+        String path = new Uri.Builder().path("/3/search/multi").appendQueryParameter("query", words)
+                .appendQueryParameter("include_adult", "false").appendQueryParameter("language", "en-US").build().toString();
+        JSONObject page = get(path, LIST_MS);
+        if (page == null) return null;
+        List<Title> out = new ArrayList<>();
+        JSONArray results = page.optJSONArray("results");
+        for (int i = 0; results != null && i < results.length() && out.size() < SEARCH_RESULTS; i++) {
+            JSONObject r = results.optJSONObject(i);
+            String kind = r == null ? "" : r.optString("media_type");
+            if (!"movie".equals(kind) && !"tv".equals(kind)) continue;
+            JSONObject one = new JSONObject();
+            try {
+                one.put("results", new JSONArray().put(r));
+            } catch (org.json.JSONException e) {
+                continue;
+            }
+            List<Title> parsed = new ArrayList<>();
+            add(parsed, one, kind);
+            if (parsed.isEmpty()) continue;
+            Title t = parsed.get(0);
+            if (t.backdrop.isEmpty() && !r.isNull("poster_path") && !r.optString("poster_path").isEmpty()) {
+                t.backdrop = IMAGES + "w780" + r.optString("poster_path");
+            }
+            out.add(t);
+        }
+        // Where each one streams: a request per title, so at once rather than one after another.
+        java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(4);
+        List<java.util.concurrent.Future<?>> jobs = new ArrayList<>();
+        for (Title t : out) {
+            jobs.add(pool.submit(() -> t.services = parseServices(get("/3/" + t.kind + "/" + t.id + "/watch/providers", LIST_MS))));
+        }
+        for (java.util.concurrent.Future<?> job : jobs) {
+            try {
+                job.get();
+            } catch (Exception e) {
+                // That title shows without its apps.
+            }
+        }
+        pool.shutdown();
+        return out;
+    }
+
+    /** The apps a title is included with in India (subscription, free or with ads); renting and buying do not count. */
+    static List<String> parseServices(JSONObject answer) {
+        List<String> out = new ArrayList<>();
+        JSONObject all = answer == null ? null : answer.optJSONObject("results");
+        JSONObject here = all == null ? null : all.optJSONObject(Providers.REGION);
+        if (here == null) return out;
+        for (String type : new String[] {"flatrate", "free", "ads"}) {
+            JSONArray list = here.optJSONArray(type);
+            for (int i = 0; list != null && i < list.length(); i++) {
+                JSONObject p = list.optJSONObject(i);
+                if (p == null) continue;
+                for (java.util.Map.Entry<String, Integer> known : Providers.TMDB.entrySet()) {
+                    if (known.getValue() == p.optInt("provider_id") && !out.contains(known.getKey())) out.add(known.getKey());
+                }
+            }
+        }
+        return out;
     }
 
     /** A film's or series' details with its credits and ratings, kept a week; null for a bad id or no answer. */
