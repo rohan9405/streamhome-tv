@@ -45,7 +45,7 @@ final class FeedSettingsUi {
         label.setLetterSpacing(0.18f);
         label.setPadding(0, dp(9), 0, dp(30));
         rail.addView(label);
-        String[] names = {"Finance chip", "Connections", "Diagnostics"};
+        String[] names = {"Finance chip", "Cricket", "Header", "Connections", "Phone page", "Diagnostics"};
         for (int i = 0; i < names.length; i++) {
             int at = i;
             TextView item = text(names[i], 15, Color.WHITE, regular);
@@ -122,7 +122,7 @@ final class FeedSettingsUi {
     void update(Store.Snapshot snapshot) {
         refreshButton.setText("Refresh feed");
         updated.setText(snapshot.refreshedMs == 0 ? "Feed has not refreshed yet" : "Updated " + DateUtils.getRelativeTimeSpanString(snapshot.refreshedMs));
-        if (selected == 1) connections();
+        if (selected == 3) connections();
     }
 
     private void select(int at) {
@@ -130,7 +130,10 @@ final class FeedSettingsUi {
         if (diagnostics != null && diagnostics.getParent() instanceof ViewGroup) ((ViewGroup) diagnostics.getParent()).removeView(diagnostics);
         page.removeAllViews();
         if (at == 0) finance();
-        else if (at == 1) connections();
+        else if (at == 1) cricket();
+        else if (at == 2) header();
+        else if (at == 3) connections();
+        else if (at == 4) phone();
         else {
             heading.setText("Diagnostics");
             subtitle.setText("Source and refresh details for troubleshooting.");
@@ -188,6 +191,72 @@ final class FeedSettingsUi {
         TextView note = text("Saved automatically · Missing asset classes are skipped", 11, 0xFF74839B, regular);
         note.setPadding(dp(2), dp(3), 0, 0);
         page.addView(note);
+    }
+
+    private void cricket() {
+        heading.setText("Cricket");
+        subtitle.setText("Up to 3 matches of your teams share the chip beside the clock with the finance views.");
+        LinearLayout controls = row();
+        page.addView(controls);
+        addCard(controls, "Show on Home", "Scores from ESPN's public scoreboard", () -> Cricket.on(act) ? "On" : "Off", () -> {
+            Cricket.settings(act).edit().putBoolean("on", !Cricket.on(act)).apply();
+            Cricket.changed(act);
+        }, 58, false);
+        addCard(controls, "Rotation", "Time on each match", () -> Cricket.rotationSec(act) + " sec", () -> {
+            int at = 0;
+            while (at < Cricket.ROTATIONS.length && Cricket.ROTATIONS[at] != Cricket.rotationSec(act)) at++;
+            Cricket.settings(act).edit().putInt("rotation", Cricket.ROTATIONS[(at + 1) % Cricket.ROTATIONS.length]).apply();
+            Cricket.changed(act);
+        }, 58, true);
+        LinearLayout order = row();
+        LinearLayout.LayoutParams olp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        olp.topMargin = dp(10);
+        page.addView(order, olp);
+        addCard(order, "Keep matches together", "On: all matches, then finance. Off: one of each in turn", () -> Cricket.together(act) ? "On" : "Off", () -> {
+            Cricket.settings(act).edit().putBoolean("together", !Cricket.together(act)).apply();
+            Cricket.changed(act);
+        }, 58, false);
+        teams("COUNTRIES", Cricket.COUNTRIES);
+        teams("IPL TEAMS", Cricket.IPL);
+    }
+
+    private void teams(String title, String[] names) {
+        TextView group = text(title, 10, 0xFF8D9BB1, medium);
+        group.setLetterSpacing(0.15f);
+        group.setPadding(dp(2), dp(19), 0, dp(10));
+        page.addView(group);
+        for (int i = 0; i < names.length; i += 2) {
+            LinearLayout pair = row();
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            lp.bottomMargin = dp(10);
+            page.addView(pair, lp);
+            for (int j = i; j < i + 2; j++) {
+                String team = names[j];
+                addCard(pair, team, "Follow", () -> Cricket.teams(act).contains(team) ? "On" : "Off", () -> {
+                    Cricket.toggleTeam(act, team);
+                    Cricket.changed(act);
+                }, 58, j > i);
+            }
+        }
+    }
+
+    private void header() {
+        heading.setText("Header");
+        subtitle.setText("How new titles are named over their artwork on Home.");
+        LinearLayout controls = row();
+        page.addView(controls);
+        addCard(controls, "Title logos", "On: the title's own logo where TMDB has one. Off: the title written as text", () -> FeedProvider.logosOn(act) ? "On" : "Off", () -> {
+            FeedProvider.setLogos(act, !FeedProvider.logosOn(act));
+        }, 70, false);
+    }
+
+    private void phone() {
+        heading.setText("Phone page");
+        subtitle.setText("Add your TMDB token and OMDb key from a phone on this Wi-Fi, instead of a computer.");
+        LinearLayout controls = row();
+        page.addView(controls);
+        addCard(controls, "Open phone page", "Shows a QR code and PIN. It closes when you leave that screen", () -> "Open",
+                () -> act.startActivity(new android.content.Intent(act, PhoneActivity.class)), 70, false);
     }
 
     private interface Value { String get(); }

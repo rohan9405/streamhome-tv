@@ -85,7 +85,9 @@ final class Insights {
             if (!holdingsOn(ctx)) o.remove("portfolio");
             JSONObject views = new JSONObject();
             for (String key : VIEWS) views.put(key, viewOn(ctx, key));
-            o.put("views", views).put("chip", chipOn(ctx)).put("rotation", rotationSec(ctx));
+            o.put("views", views).put("chip", chipOn(ctx)).put("rotation", rotationSec(ctx))
+                    .put("cricket", Cricket.forHome(ctx)).put("cricket_rotation", Cricket.rotationSec(ctx))
+                    .put("cricket_together", Cricket.together(ctx));
         } catch (JSONException e) {
             return "{\"status\":\"none\"}";
         }

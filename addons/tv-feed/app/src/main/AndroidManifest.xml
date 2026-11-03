@@ -37,6 +37,14 @@
             android:authorities="io.github.rohan9405.feed"
             android:exported="true" />
 
+        <!-- The phone page's QR code and PIN; its web server runs only while this is on screen. -->
+        <activity
+            android:name=".PhoneActivity"
+            android:exported="true"
+            android:taskAffinity=""
+            android:excludeFromRecents="true"
+            android:screenOrientation="landscape" />
+
         <activity
             android:name=".FeedActivity"
             android:exported="true"

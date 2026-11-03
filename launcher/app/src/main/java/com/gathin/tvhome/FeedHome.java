@@ -106,6 +106,8 @@ final class FeedHome {
     private final LinearLayout content;
     private final LinearLayout heroBlock;
     private final ImageView heroLogo;
+    /** The title's own logo over the art, in place of the written title when there is one. */
+    private final ImageView heroWordmark;
     private final TextView heroTitle, heroMeta, heroAction;
     /** Watch, shown while the header has focus (holding OK opens Read more). */
     private final LinearLayout heroButtons;
@@ -225,6 +227,13 @@ final class FeedHome {
         heroTitle.setIncludeFontPadding(false);
         heroTitle.setShadowLayer(dp(10), 0, dp(1), 0x99000000);
         heroBlock.addView(heroTitle, new LinearLayout.LayoutParams(dp(620), ViewGroup.LayoutParams.WRAP_CONTENT));
+        heroWordmark = new ImageView(act);
+        heroWordmark.setAdjustViewBounds(true);
+        heroWordmark.setMaxWidth(dp(WORDMARK_W));
+        heroWordmark.setMaxHeight(dp(WORDMARK_H));
+        heroWordmark.setScaleType(ImageView.ScaleType.FIT_START);
+        heroWordmark.setVisibility(View.GONE);
+        heroBlock.addView(heroWordmark, heroBlock.indexOfChild(heroTitle), wrap());
         // The app's logo, then the IMDb tag, then year · genres · season: the logo says where it streams.
         LinearLayout metaRow = row();
         metaRow.setGravity(Gravity.CENTER_VERTICAL);
@@ -512,6 +521,8 @@ final class FeedHome {
 
     private static final int TILE_W = 232;
     private static final int TILE_H = 130;
+    /** The largest the header's title logo is drawn. */
+    private static final int WORDMARK_W = 420, WORDMARK_H = 110;
 
     private void layoutSizes() {
         int h = container.getHeight();
@@ -1277,6 +1288,7 @@ final class FeedHome {
         String app = a == null ? "" : a.label;
         heroAction.setText(app.isEmpty() ? act.getString(R.string.feed_open) : act.getString(R.string.feed_watch_on, app));
         heroTitle.setText(e.title);
+        showWordmark(e);
         heroTag.removeAllViews();
         if (!e.rating.isEmpty()) imdbTag(heroTag, e.rating, false);
         // Brand-new titles often have no rating yet: the year then follows the logo where the tag would have.
@@ -1292,6 +1304,30 @@ final class FeedHome {
         heroMeta.setText(TextUtils.join("  ·  ", meta));
     }
 
+
+    /** The title's logo when it has one; the written title otherwise, and whenever the logo cannot be loaded. */
+    private void showWordmark(Feed.Entry e) {
+        heroWordmark.setImageDrawable(null);
+        heroWordmark.setVisibility(View.GONE);
+        heroWordmark.setContentDescription(e.title);
+        heroWordmark.setTag(e.logo);
+        if (e.logo.isEmpty()) {
+            heroTitle.setVisibility(View.VISIBLE);
+            return;
+        }
+        // Kept in the layout, unseen, so the written title does not flash before its logo.
+        heroTitle.setVisibility(View.INVISIBLE);
+        feed.loadLogo(e.logo, dp(WORDMARK_W), b -> {
+            if (!e.logo.equals(heroWordmark.getTag())) return;   // the header has turned since
+            if (b == null) {
+                heroTitle.setVisibility(View.VISIBLE);
+                return;
+            }
+            heroWordmark.setImageBitmap(b);
+            heroWordmark.setVisibility(View.VISIBLE);
+            heroTitle.setVisibility(View.GONE);
+        });
+    }
 
     private void showBackdrop(String source, Bitmap b) {
         if (!source.equals(backdropSource)) return;
@@ -1538,6 +1574,7 @@ final class FeedHome {
         top.addView(art, new LinearLayout.LayoutParams(dp(208), dp(117)));
         String source = !e.backdrop.isEmpty() ? e.backdrop : e.poster;
         if (!source.isEmpty()) feed.loadArt(source, dp(208) * 2, art::setImageBitmap);
+        else if (!e.artSource.isEmpty()) feed.art(e, dp(208) * 2, art::setImageBitmap);
         LinearLayout head = column();
         LinearLayout.LayoutParams hlp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
         hlp.leftMargin = dp(20);
@@ -1569,7 +1606,9 @@ final class FeedHome {
         head.addView(title, tlp);
         LinearLayout metaRow = row();
         metaRow.setGravity(Gravity.CENTER_VERTICAL);
-        if (!e.rating.isEmpty()) imdbTag(metaRow, e.rating, true);
+        LinearLayout tagBox = row();
+        metaRow.addView(tagBox, wrap());
+        if (!e.rating.isEmpty()) imdbTag(tagBox, e.rating, true);
         TextView meta = text(13, 0xCCFFFFFF, regular);
         LinearLayout.LayoutParams mlp = wrap();
         mlp.leftMargin = e.rating.isEmpty() ? 0 : dp(10);
@@ -1615,20 +1654,21 @@ final class FeedHome {
             dialog.dismiss();
             watch(e);
         });
-        buttons.addView(watch, wrap());
+        // A search result on none of this TV's apps has nothing to open.
+        if (!e.intent.isEmpty()) buttons.addView(watch, wrap());
         TextView close = detailsButton(act.getString(R.string.feed_close));
         close.setOnClickListener(v -> dialog.dismiss());
         LinearLayout.LayoutParams clp = wrap();
-        clp.leftMargin = dp(10);
+        clp.leftMargin = e.intent.isEmpty() ? 0 : dp(10);
         buttons.addView(close, clp);
 
         dialog.setContentView(box, new ViewGroup.LayoutParams(dp(760), ViewGroup.LayoutParams.WRAP_CONTENT));
         if (dialog.getWindow() != null) dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
         dialog.show();
-        watch.requestFocus();
+        (e.intent.isEmpty() ? close : watch).requestFocus();
 
         if (e.tmdb.isEmpty()) return;   // a YouTube video: its description is all there is
-        feed.details(e.tmdb, d -> {
+        feed.details(e.tmdb, e.rating.isEmpty() ? e.title : null, e.year, d -> {
             facts.removeAllViews();
             if (d == null || d.containsKey("error")) {
                 TextView none = text(13, 0x80FFFFFF, regular);
@@ -1639,6 +1679,12 @@ final class FeedHome {
                 return;
             }
             meta.setText(detailsMeta(e, d));
+            String imdb = d.getOrDefault("imdb_rating", "");
+            if (e.rating.isEmpty() && !imdb.isEmpty()) {
+                imdbTag(tagBox, imdb, true);
+                ((LinearLayout.LayoutParams) meta.getLayoutParams()).leftMargin = dp(10);
+                meta.requestLayout();
+            }
             String tag = d.getOrDefault("tagline", "");
             tagline.setText(tag);
             tagline.setVisibility(tag.isEmpty() ? View.GONE : View.VISIBLE);
@@ -1656,6 +1702,279 @@ final class FeedHome {
             fact(facts, R.string.feed_released, longDate(d.get("released")));
             fact(facts, R.string.feed_status, d.get("status"));
         });
+    }
+
+    // ---- search -------------------------------------------------------------------------------------------
+
+    private static final long SEARCH_WAIT_MS = 600;
+    private static final int SEARCH_MIN_CHARS = 2, SEARCH_COLUMNS = 4;
+
+    /**
+     * Search from the top bar: a text box over the whole screen and one card per title, showing the apps it streams on.
+     * OK plays; holding OK offers Play and Read more. Typing asks the add-on once the typing pauses.
+     */
+    void openSearch() {
+        Dialog dialog = new Dialog(act, android.R.style.Theme_Black_NoTitleBar_Fullscreen);
+        LinearLayout page = column();
+        page.setClipChildren(false);
+        page.setClipToPadding(false);
+        page.setPadding(dp(48), dp(36), dp(48), 0);
+        page.setBackgroundColor(0xFF0B0D12);
+
+        android.widget.EditText box = new android.widget.EditText(act);
+        box.setSingleLine(true);
+        box.setTextSize(20);
+        box.setTextColor(Color.WHITE);
+        box.setHintTextColor(0x80FFFFFF);
+        box.setHint(R.string.feed_search_hint);
+        box.setTypeface(regular);
+        box.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH);
+        box.setInputType(android.text.InputType.TYPE_CLASS_TEXT);
+        box.setCompoundDrawablesRelativeWithIntrinsicBounds(R.drawable.ic_search, 0, 0, 0);
+        box.setCompoundDrawablePadding(dp(12));
+        box.setPadding(dp(20), dp(12), dp(20), dp(12));
+        box.setBackground(rounded(0x29FFFFFF, dp(26)));
+        box.setOnFocusChangeListener((v, has) -> {
+            GradientDrawable bg = rounded(has ? 0x3DFFFFFF : 0x29FFFFFF, dp(26));
+            if (has) bg.setStroke(dp(2), Color.WHITE);
+            v.setBackground(bg);
+        });
+        LinearLayout bar = row();
+        bar.setGravity(Gravity.CENTER_VERTICAL);
+        bar.addView(box, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        TextView phone = detailsButton(act.getString(R.string.feed_search_phone));
+        phone.setOnClickListener(v -> {
+            if (!feed.openPhoneSearch()) Toast.makeText(act, R.string.feed_search_phone_missing, Toast.LENGTH_SHORT).show();
+        });
+        LinearLayout.LayoutParams plp = wrap();
+        plp.leftMargin = dp(12);
+        bar.addView(phone, plp);
+        page.addView(bar, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        TextView status = text(15, 0xB3FFFFFF, regular);
+        status.setText(R.string.feed_search_prompt);
+        LinearLayout.LayoutParams slp = wrap();
+        slp.topMargin = dp(16);
+        slp.leftMargin = dp(8);
+        page.addView(status, slp);
+
+        RecyclerView results = new RecyclerView(act);
+        results.setLayoutManager(new GridLayoutManager(act, SEARCH_COLUMNS));
+        results.setClipChildren(false);
+        results.setClipToPadding(false);
+        results.setPadding(dp(4), dp(14), dp(4), dp(40));
+        results.setOverScrollMode(View.OVER_SCROLL_NEVER);
+        results.setItemAnimator(null);
+        LinearLayout.LayoutParams rlp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f);
+        page.addView(results, rlp);
+
+        // Only the newest words' answer counts: an older one can arrive after it.
+        final String[] asked = {""};
+        Runnable ask = () -> {
+            String words = box.getText().toString().trim();
+            if (words.length() < SEARCH_MIN_CHARS || words.equals(asked[0])) return;
+            asked[0] = words;
+            status.setText(R.string.feed_search_looking);
+            feed.search(words, drawer, apps.keySet(), (found, error) -> {
+                if (!words.equals(asked[0]) || !dialog.isShowing()) return;
+                results.setAdapter(new SearchCards(found, box));
+                status.setText(!error.isEmpty() ? searchError(error)
+                        : found.isEmpty() ? act.getString(R.string.feed_search_none) : "");
+                status.setVisibility(status.getText().length() == 0 ? View.GONE : View.VISIBLE);
+            });
+        };
+        box.addTextChangedListener(new android.text.TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+            }
+
+            @Override
+            public void afterTextChanged(android.text.Editable s) {
+                handler.removeCallbacks(ask);
+                status.setVisibility(View.VISIBLE);
+                if (s.toString().trim().length() < SEARCH_MIN_CHARS) {
+                    asked[0] = "";
+                    results.setAdapter(null);
+                    status.setText(R.string.feed_search_prompt);
+                } else {
+                    handler.postDelayed(ask, SEARCH_WAIT_MS);
+                }
+            }
+        });
+        box.setOnEditorActionListener((v, action, e) -> {
+            handler.removeCallbacks(ask);
+            ask.run();
+            act.getSystemService(android.view.inputmethod.InputMethodManager.class).hideSoftInputFromWindow(v.getWindowToken(), 0);
+            return true;
+        });
+        View.OnKeyListener down = (v, key, e) -> {
+            if (key != KeyEvent.KEYCODE_DPAD_DOWN || e.getAction() != KeyEvent.ACTION_DOWN) return false;
+            RecyclerView.ViewHolder first = results.findViewHolderForAdapterPosition(0);
+            if (first != null) first.itemView.requestFocus();
+            return true;
+        };
+        box.setOnKeyListener(down);
+        phone.setOnKeyListener(down);
+        // Back from the phone page's screen: whatever was typed there is waiting.
+        page.getViewTreeObserver().addOnWindowFocusChangeListener(has -> {
+            if (!has) return;
+            feed.takePhoneWords(words -> {
+                box.setText(words);
+                box.setSelection(words.length());
+                handler.removeCallbacks(ask);
+                ask.run();
+                act.getSystemService(android.view.inputmethod.InputMethodManager.class).hideSoftInputFromWindow(box.getWindowToken(), 0);
+            });
+        });
+        dialog.setOnDismissListener(d -> handler.removeCallbacks(ask));
+        dialog.setContentView(page);
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+            // The keyboard covers the screen's lower part on its own: the page stays where it is.
+            dialog.getWindow().setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE
+                    | android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING);
+        }
+        dialog.show();
+        box.requestFocus();
+    }
+
+    private String searchError(String error) {
+        return act.getString("tmdb_missing".equals(error) ? R.string.feed_needs_tmdb
+                : "tmdb_refused".equals(error) ? R.string.feed_tmdb_refused : R.string.feed_search_offline);
+    }
+
+    private void playFromSearch(Feed.Entry e) {
+        if (e.pkg.isEmpty()) showDetails(e);   // on none of this TV's apps: all there is to show is what it is
+        else watch(e);
+    }
+
+    /** Holding OK: Play (one line per app when it is on several) and Read more. */
+    private void searchMenu(View card, Feed.Entry e) {
+        List<String> labels = new ArrayList<>();
+        List<Runnable> actions = new ArrayList<>();
+        for (String pkg : e.services) {
+            App a = apps.get(pkg);
+            labels.add(e.services.size() > 1 && a != null ? act.getString(R.string.feed_play_on, a.label) : act.getString(R.string.feed_play));
+            actions.add(() -> watch(Feed.on(e, pkg)));
+        }
+        labels.add(act.getString(R.string.feed_read_more));
+        actions.add(() -> showDetails(e));
+        menu(card, e.title, labels.toArray(new String[0]), actions.toArray(new Runnable[0]));
+    }
+
+    private final class SearchCards extends RecyclerView.Adapter<SearchCards.Holder> {
+        private final List<Feed.Entry> list;
+        private final View box;
+
+        SearchCards(List<Feed.Entry> list, View box) {
+            this.list = list;
+            this.box = box;
+        }
+
+        final class Holder extends RecyclerView.ViewHolder {
+            final ImageView art = new ImageView(act);
+            final TextView title = text(15, Color.WHITE, medium);
+            final TextView note = text(12, 0xB3FFFFFF, regular);
+            final LinearLayout badges = row();
+
+            Holder(FrameLayout card) {
+                super(card);
+            }
+        }
+
+        @NonNull
+        @Override
+        public Holder onCreateViewHolder(@NonNull ViewGroup parent, int type) {
+            FrameLayout card = new FrameLayout(act);
+            int gap = dp(16);
+            int width = (parent.getWidth() - parent.getPaddingLeft() - parent.getPaddingRight()) / SEARCH_COLUMNS - gap;
+            RecyclerView.LayoutParams lp = new RecyclerView.LayoutParams(width, width * 9 / 16);
+            lp.setMargins(gap / 2, gap / 2, gap / 2, gap / 2);
+            card.setLayoutParams(lp);
+            card.setBackground(rounded(0xFF1C2130, dp(14)));
+            card.setForeground(ring(dp(14)));
+            card.setClipToOutline(true);
+            card.setFocusable(true);
+            Holder h = new Holder(card);
+            h.art.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            card.addView(h.art, match());
+            View shade = new View(act);
+            shade.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+                    new int[] {0x00000000, 0x33000000, 0xE6000000}));
+            card.addView(shade, match());
+            LinearLayout words = column();
+            words.setPadding(dp(12), 0, dp(12), dp(10));
+            h.title.setMaxLines(2);
+            h.title.setEllipsize(TextUtils.TruncateAt.END);
+            h.title.setShadowLayer(dp(4), 0, dp(1), 0x99000000);
+            words.addView(h.title, wrap());
+            h.note.setSingleLine(true);
+            words.addView(h.note, wrap());
+            card.addView(words, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM));
+            FrameLayout.LayoutParams bl = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.END);
+            bl.topMargin = dp(8);
+            bl.rightMargin = dp(8);
+            card.addView(h.badges, bl);
+            card.setOnFocusChangeListener((v, has) -> lift(v, has, 1.06f));
+            card.setOnClickListener(v -> {
+                int pos = h.getBindingAdapterPosition();
+                if (pos != RecyclerView.NO_POSITION) playFromSearch(list.get(pos));
+            });
+            card.setOnLongClickListener(v -> {
+                int pos = h.getBindingAdapterPosition();
+                if (pos != RecyclerView.NO_POSITION) searchMenu(v, list.get(pos));
+                return true;
+            });
+            card.setOnKeyListener((v, key, e) -> {
+                if (key != KeyEvent.KEYCODE_DPAD_UP || e.getAction() != KeyEvent.ACTION_DOWN) return false;
+                int pos = h.getBindingAdapterPosition();
+                if (pos < SEARCH_COLUMNS) {
+                    box.requestFocus();
+                    return true;
+                }
+                return false;
+            });
+            return h;
+        }
+
+        @Override
+        public void onBindViewHolder(@NonNull Holder h, int position) {
+            Feed.Entry e = list.get(position);
+            h.itemView.setContentDescription(e.title);
+            h.title.setText(e.title);
+            String kind = kindLabel(e);
+            List<String> note = new ArrayList<>();
+            if (!kind.isEmpty()) note.add(kind);
+            if (!e.year.isEmpty()) note.add(e.year);
+            if (e.services.isEmpty()) note.add(act.getString(R.string.feed_search_not_on_apps));
+            h.note.setText(TextUtils.join("  ·  ", note));
+            h.badges.removeAllViews();
+            for (String pkg : e.services) {
+                App a = apps.get(pkg);
+                if (a == null) continue;
+                ImageView badge = new ImageView(act);
+                badge.setImageDrawable(a.icon);
+                badge.setClipToOutline(true);
+                badge.setBackground(rounded(0x00000000, dp(5)));
+                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(24), dp(24));
+                if (h.badges.getChildCount() > 0) lp.leftMargin = dp(6);
+                h.badges.addView(badge, lp);
+            }
+            h.art.setImageDrawable(null);
+            h.art.setTag(e.artSource);
+            feed.art(e, dp(TILE_W), b -> {
+                if (b != null && e.artSource.equals(h.art.getTag())) h.art.setImageBitmap(b);
+            });
+        }
+
+        @Override
+        public int getItemCount() {
+            return list.size();
+        }
     }
 
     /** Year · length (or seasons) · age rating · genres · season: what Home has, then what the add-on adds. */

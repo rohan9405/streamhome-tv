@@ -23,6 +23,23 @@
     <!-- The header's Read more popup. -->
     <string name="feed_close">Close</string>
     <string name="feed_loading_details">Loading cast and details…</string>
+    <string name="feed_search" translatable="false">Search</string>
+    <string name="feed_search_phone">Type on phone</string>
+    <string name="feed_search_phone_missing">Update the Feed add-on to type on your phone.</string>
+    <string name="insight_cricket">Cricket</string>
+    <string name="insight_cricket_live">Live</string>
+    <string name="insight_cricket_result">Result</string>
+    <string name="insight_cricket_today">Today</string>
+    <string name="insight_cricket_tomorrow">Tomorrow</string>
+    <string name="feed_search_hint">Search films and shows</string>
+    <string name="feed_search_prompt">Type a title. Your streaming apps are searched together.</string>
+    <string name="feed_search_looking">Searching…</string>
+    <string name="feed_search_none">No films or shows found for that.</string>
+    <string name="feed_search_offline">Search could not reach TMDB. Check the connection and try again.</string>
+    <string name="feed_search_not_on_apps">Not on your apps</string>
+    <string name="feed_play">Play</string>
+    <string name="feed_play_on">Play on %1$s</string>
+    <string name="feed_read_more">Read more</string>
     <string name="feed_no_details">No more details for this title right now.</string>
     <string name="feed_needs_tmdb">Cast and details need a TMDB read token (free at themoviedb.org). Add it from your computer: my-tv/api-keys.sh save tmdb, then send.</string>
     <string name="feed_tmdb_refused">TMDB turned the saved token away. Save a new one from your computer: my-tv/api-keys.sh save tmdb, then send.</string>

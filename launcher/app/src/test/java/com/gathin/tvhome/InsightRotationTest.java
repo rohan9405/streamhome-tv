@@ -34,4 +34,40 @@ public class InsightRotationTest {
         assertTrue(InsightRotation.views(new JSONObject()).isEmpty());
         assertEquals(2, InsightRotation.views(data().put("portfolio", JSONObject.NULL)).size());
     }
+
+    @org.junit.Test
+    public void matchesComeTogetherThenFinanceByDefault() throws Exception {
+        org.json.JSONObject data = new org.json.JSONObject("{markets: [{name: 'NIFTY 50', price: 1}, {name: 'SENSEX', price: 2}],"
+                + " cricket: [{a_abbr: 'IND', state: 'live'}, {a_abbr: 'MI', state: 'next'}]}");
+        java.util.List<org.json.JSONObject> views = InsightRotation.views(data);
+        org.junit.Assert.assertEquals(4, views.size());
+        org.junit.Assert.assertTrue(InsightRotation.isCricket(views.get(0)));
+        org.junit.Assert.assertTrue(InsightRotation.isCricket(views.get(1)));
+        org.junit.Assert.assertFalse(InsightRotation.isCricket(views.get(2)));
+    }
+
+    @org.junit.Test
+    public void withTogetherOffTheyTakeTurns() throws Exception {
+        org.json.JSONObject data = new org.json.JSONObject("{cricket_together: false, markets: [{name: 'NIFTY 50', price: 1}, {name: 'SENSEX', price: 2}],"
+                + " cricket: [{a_abbr: 'IND', state: 'live'}]}");
+        java.util.List<org.json.JSONObject> views = InsightRotation.views(data);
+        org.junit.Assert.assertFalse(InsightRotation.isCricket(views.get(0)));
+        org.junit.Assert.assertTrue(InsightRotation.isCricket(views.get(1)));
+        org.junit.Assert.assertFalse(InsightRotation.isCricket(views.get(2)));
+    }
+
+    @org.junit.Test
+    public void cricketShowsWithTheFinanceChipOff() throws Exception {
+        org.json.JSONObject data = new org.json.JSONObject("{chip: false, markets: [{name: 'SENSEX', price: 2}], cricket: [{a_abbr: 'IND', state: 'next'}]}");
+        org.junit.Assert.assertTrue(InsightRotation.visible(data));
+        org.junit.Assert.assertEquals(1, InsightRotation.views(data).size());
+    }
+
+    @org.junit.Test
+    public void cricketValueReadsAsAScoreOrResult() throws Exception {
+        org.junit.Assert.assertEquals("IND 187/4 (16.2 ov) v AUS", InsightRotation.cricketValue(new org.json.JSONObject(
+                "{state: 'live', a_abbr: 'IND', a_score: '187/4 (16.2 ov)', b_abbr: 'AUS', b_score: ''}")));
+        org.junit.Assert.assertEquals("India won by 6 wkts", InsightRotation.cricketValue(new org.json.JSONObject(
+                "{state: 'result', a_abbr: 'IND', b_abbr: 'ENG', summary: 'India won by 6 wkts'}")));
+    }
 }

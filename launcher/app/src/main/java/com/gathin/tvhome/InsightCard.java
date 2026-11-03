@@ -32,7 +32,7 @@ import java.util.Locale;
  * only shows them, with their time, and never shows a missing figure as zero.
  */
 final class InsightCard {
-    private long turnMs = 30_000;
+    private long turnMs = 30_000, cricketMs = 10_000;
     private static final int UP = 0xFF6EE7A0, DOWN = 0xFFFF8A80;
 
     private final Activity act;
@@ -46,10 +46,17 @@ final class InsightCard {
     private final Runnable turn = new Runnable() {
         @Override
         public void run() {
-            if (!chip.hasFocus() && chip.getVisibility() == View.VISIBLE && chipViews().size() > 1) slide();
-            handler.postDelayed(this, turnMs);
+            boolean turning = !chip.hasFocus() && chip.getVisibility() == View.VISIBLE && chipViews().size() > 1;
+            if (turning) slide();
+            handler.postDelayed(this, showingFor(turning ? step + 1 : step));
         }
     };
+
+    /** A match stays for its own time, set apart from the finance views'. */
+    private long showingFor(int at) {
+        java.util.List<JSONObject> views = chipViews();
+        return !views.isEmpty() && InsightRotation.isCricket(views.get(Math.floorMod(at, views.size()))) ? cricketMs : turnMs;
+    }
 
     /** Adds the chip to the clock row, after the date; toTopBar and toHome move focus Right and Down from it. */
     InsightCard(Activity act, Handler handler, LinearLayout clockRow, Runnable toTopBar, Runnable toHome) {
@@ -68,6 +75,9 @@ final class InsightCard {
         label.setAllCaps(true);
         chip.addView(label);
         value = text(15, Color.WHITE, Typeface.DEFAULT);
+        // A long score must not run into the top bar.
+        value.setMaxWidth(dp(250));
+        value.setEllipsize(android.text.TextUtils.TruncateAt.END);
         LinearLayout.LayoutParams vl = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         vl.leftMargin = dp(10);
         chip.addView(value, vl);
@@ -122,9 +132,10 @@ final class InsightCard {
             if (next != null) next.requestFocus();
         }
         chip.setVisibility(on ? View.VISIBLE : View.GONE);
-        long ms = 1000L * Math.max(5, data.optInt("rotation", 30));
-        if (ms != turnMs) {
+        long ms = 1000L * Math.max(5, data.optInt("rotation", 30)), cricket = 1000L * Math.max(5, data.optInt("cricket_rotation", 10));
+        if (ms != turnMs || cricket != cricketMs) {
             turnMs = ms;
+            cricketMs = cricket;
             handler.removeCallbacks(turn);
             handler.postDelayed(turn, turnMs);
         }
@@ -162,12 +173,42 @@ final class InsightCard {
             return;
         }
         JSONObject item = views.get(Math.floorMod(step, views.size()));
+        if (InsightRotation.isCricket(item)) {
+            paintMatch(item, focused, plain);
+            return;
+        }
+        label.setTextColor(focused ? 0xB30B0D12 : 0xB3FFFFFF);
         boolean market = item.has("price");
         label.setText(item.optString("chip_name"));
         double c = item.optDouble("change");
         value.setText((market ? level(item.optDouble("price")) : rupees(c))
                 + "   " + arrow(c) + pct(item.optDouble("pct")));
         value.setTextColor(focused ? (c < 0 ? 0xFFB3261E : 0xFF0F7B3F) : (c < 0 ? DOWN : UP));
+    }
+
+    private void paintMatch(JSONObject m, boolean focused, int plain) {
+        String state = m.optString("state");
+        label.setText("live".equals(state) ? matchStatus(m) : "next".equals(state) ? startTime(m.optLong("at"))
+                : act.getString(R.string.insight_cricket_result));
+        label.setTextColor(focused ? 0xB30B0D12 : "live".equals(state) ? DOWN : "result".equals(state) ? UP : 0xB3FFFFFF);
+        value.setText(InsightRotation.cricketValue(m));
+        value.setTextColor(plain);
+    }
+
+    /** "Stumps" or "Tea" when play has stopped, otherwise "Live". */
+    private String matchStatus(JSONObject m) {
+        String s = m.optString("status");
+        return s.isEmpty() || s.length() > 12 ? act.getString(R.string.insight_cricket_live) : s;
+    }
+
+    /** "Today 7:30 PM", "Tomorrow 7:30 PM" or "Sat 7:30 PM". */
+    private String startTime(long at) {
+        java.time.ZoneId zone = java.time.ZoneId.systemDefault();
+        long days = java.time.temporal.ChronoUnit.DAYS.between(java.time.LocalDate.now(zone), java.time.Instant.ofEpochMilli(at).atZone(zone).toLocalDate());
+        Date when = new Date(at);
+        String day = days <= 0 ? act.getString(R.string.insight_cricket_today) : days == 1 ? act.getString(R.string.insight_cricket_tomorrow)
+                : String.valueOf(DateFormat.format("EEE", when));
+        return day + " " + DateFormat.getTimeFormat(act).format(when);
     }
 
     private java.util.List<JSONObject> chipViews() {
@@ -219,6 +260,15 @@ final class InsightCard {
                 cell(line, act.getString(R.string.insight_prev, level(x.optDouble("prev"))), 150, 0x99FFFFFF, Gravity.END);
             }
         }
+        JSONArray matches = data.optJSONArray("cricket");
+        if (matches != null && matches.length() > 0) {
+            if (p == null && (m == null || m.length() == 0)) head.setText(R.string.insight_cricket);
+            section(box, R.string.insight_cricket);
+            for (int i = 0; i < matches.length(); i++) {
+                JSONObject x = matches.optJSONObject(i);
+                if (x != null) match(box, x);
+            }
+        }
         if ("reconnect".equals(data.optString("status"))) {
             TextView r = text(13, 0xFFFFC46B, Typeface.DEFAULT);
             r.setText(R.string.insight_reconnect_help);
@@ -227,6 +277,7 @@ final class InsightCard {
         }
         TextView src = text(11, 0x66FFFFFF, Typeface.DEFAULT);
         src.setText(p != null ? R.string.insight_source : R.string.insight_source_markets);
+        src.setVisibility(p != null || (m != null && m.length() > 0) ? View.VISIBLE : View.GONE);
         src.setPadding(0, dp(14), 0, 0);
         box.addView(src);
         dialog.setContentView(box);
@@ -234,6 +285,19 @@ final class InsightCard {
         // Back on the chip when it closes, not wherever Home's focus finder lands.
         dialog.setOnDismissListener(x -> chip.post(chip::requestFocus));
         dialog.show();
+    }
+
+    /** Both sides in full with their scores, then how it stands and the league. */
+    private void match(LinearLayout box, JSONObject x) {
+        TextView t = text(15, Color.WHITE, Typeface.DEFAULT);
+        t.setText((x.optString("a_name") + " " + x.optString("a_score")).trim() + "  v  " + (x.optString("b_name") + " " + x.optString("b_score")).trim());
+        t.setPadding(0, dp(5), 0, 0);
+        box.addView(t);
+        TextView s = text(12, 0x99FFFFFF, Typeface.DEFAULT);
+        String when = "next".equals(x.optString("state")) ? startTime(x.optLong("at")) : x.optString("summary");
+        s.setText(when.isEmpty() ? x.optString("league") : when + "  ·  " + x.optString("league"));
+        s.setPadding(0, 0, 0, dp(5));
+        box.addView(s);
     }
 
     private void row(LinearLayout box, String name, double change, double pct, double value, boolean total) {

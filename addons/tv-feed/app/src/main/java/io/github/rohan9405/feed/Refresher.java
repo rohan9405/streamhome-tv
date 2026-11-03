@@ -290,7 +290,10 @@ final class Refresher {
         List<Future<?>> jobs = new ArrayList<>();
         for (Item i : items) {
             jobs.add(pool.submit(() -> {
-                if (Item.HERO.equals(i.section)) i.backdrop = Images.cache(ctx, i.posterSource, true);
+                if (Item.HERO.equals(i.section)) {
+                    i.backdrop = Images.cache(ctx, i.posterSource, true);
+                    i.logo = Images.cacheLogo(ctx, ids.logo(i.tmdb));
+                }
                 else i.poster = Images.cache(ctx, i.posterSource, false);
             }));
         }
@@ -307,6 +310,7 @@ final class Refresher {
         for (Item i : items) {
             keep.add(i.poster);
             keep.add(i.backdrop);
+            keep.add(i.logo);
         }
         Images.prune(ctx, keep);
         return new Store.Snapshot(now, error.toString().trim(), items, probe);
