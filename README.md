@@ -8,6 +8,7 @@
   <a href="#set-it-up-with-one-prompt"><img src="https://img.shields.io/badge/set%20up%20with-one%20prompt-cfffcf?style=flat&labelColor=15181e" alt="Set up with one prompt"></a>
   <a href="https://github.com/Gathin23/cleanyourtv"><img src="https://img.shields.io/badge/built%20on-CleanYourTV-cfffcf?style=flat&labelColor=15181e" alt="Built on CleanYourTV"></a>
   <a href="https://buymeacoffee.com/rohan9405"><img src="https://img.shields.io/badge/support-%E2%9D%A4-ff5e8a?style=flat&labelColor=15181e" alt="Support, buy me a coffee"></a>
+  <a href="https://softorbit-apps.vercel.app/"><img src="https://img.shields.io/badge/by-Soft%20Orbit%20Apps-cfffcf?style=flat&labelColor=15181e" alt="By Soft Orbit Apps"></a>
 </p>
 
 <p align="center">
@@ -368,6 +369,8 @@ No ads, sponsored rows or app analytics are added by this project. Connected fea
 <a href="https://buymeacoffee.com/rohan9405"><img src="https://img.shields.io/badge/Buy%20me%20a%20coffee-%E2%98%95-ffdd00?style=for-the-badge&labelColor=15181e" alt="Buy me a coffee"></a>
 
 StreamHome is free and open source, and always will be. If it made your TV nicer to come home to, you can [buy me a coffee](https://buymeacoffee.com/rohan9405); it helps keep it working as streaming apps change and adds more connectors. Stars, bug reports and pull requests help just as much.
+
+StreamHome is published by [Soft Orbit Apps](https://softorbit-apps.vercel.app/): small, ad-free apps that keep your data yours, including drip for daily expenses, Horizon for alarms and Scoop for Fitbit data.
 
 ## Credits
 
