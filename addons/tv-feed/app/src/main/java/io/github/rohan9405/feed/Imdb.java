@@ -56,7 +56,7 @@ final class Imdb {
             List<String> chunk = ask.subList(from, Math.min(ask.size(), from + PER_REQUEST));
             Map<String, String> got;
             try {
-                got = parse(post(chunk));
+                got = parse(post(chunk, false));
             } catch (IOException | JSONException e) {
                 android.util.Log.w("Feed", "IMDb: " + e);
                 break;
@@ -69,6 +69,62 @@ final class Imdb {
         }
         edit.apply();
         return out;
+    }
+
+    /**
+     * One title's rating and how many people rated it, {"7.4", "123456"} ("" where IMDb has none), for Read more. Kept a
+     * day; {@code fresh} asks IMDb again whatever was kept. Null when IMDb could not be asked.
+     */
+    String[] summary(String id, boolean fresh) {
+        if (!id.matches("tt\\d+")) return null;
+        String saved = prefs.getString("s:" + id, "");
+        int at = saved.lastIndexOf('@');
+        long now = System.currentTimeMillis();
+        if (!fresh && at >= 0 && now - Long.parseLong(saved.substring(at + 1)) < KEEP_MS) {
+            String[] kept = saved.substring(0, at).split("\\|", -1);
+            if (kept.length == 2) return kept;
+        }
+        String[] got;
+        try {
+            got = parseSummary(post(java.util.Collections.singletonList(id), true), id);
+        } catch (IOException | JSONException e) {
+            android.util.Log.w("Feed", "IMDb: " + e);
+            return null;
+        }
+        prefs.edit().putString("s:" + id, got[0] + "|" + got[1] + "@" + now).apply();
+        if (!got[0].isEmpty()) prefs.edit().putString(id, got[0] + "@" + now).apply();
+        return got;
+    }
+
+    /** {"data":{"titles":[{"id":"tt1","ratingsSummary":{"aggregateRating":7.4,"voteCount":1234}}]}} -> {"7.4", "1234"}. */
+    static String[] parseSummary(String body, String id) throws JSONException {
+        JSONObject data = new JSONObject(body).optJSONObject("data");
+        JSONArray titles = data == null ? null : data.optJSONArray("titles");
+        for (int i = 0; titles != null && i < titles.length(); i++) {
+            JSONObject t = titles.optJSONObject(i);
+            JSONObject s = t == null || !id.equals(t.optString("id")) ? null : t.optJSONObject("ratingsSummary");
+            if (s == null) continue;
+            double r = s.isNull("aggregateRating") ? 0 : s.optDouble("aggregateRating", 0);
+            long votes = s.isNull("voteCount") ? 0 : s.optLong("voteCount", 0);
+            return new String[] {r > 0 && r <= 10 ? String.format(java.util.Locale.ROOT, "%.1f", r) : "", votes > 0 ? String.valueOf(votes) : ""};
+        }
+        return new String[] {"", ""};
+    }
+
+    /**
+     * The rating IMDb gave when Read more last asked for this title, if within a week; "" otherwise. A refresh prefers it to
+     * OMDb's, which can lag IMDb by weeks, so a rating refreshed on purpose is not undone by the next refresh.
+     */
+    String kept(String id) {
+        String saved = prefs.getString("s:" + id, "");
+        int at = saved.lastIndexOf('@'), bar = saved.indexOf('|');
+        if (at < 0 || bar < 0) return "";
+        try {
+            if (System.currentTimeMillis() - Long.parseLong(saved.substring(at + 1)) > 7 * KEEP_MS) return "";
+        } catch (NumberFormatException e) {
+            return "";
+        }
+        return saved.substring(0, bar);
     }
 
     /** {"data":{"titles":[{"id":"tt1","ratingsSummary":{"aggregateRating":7.4}}]}} -> tt1 -> "7.4". */
@@ -86,8 +142,9 @@ final class Imdb {
         return out;
     }
 
-    private static String post(List<String> ids) throws IOException, JSONException {
-        String body = new JSONObject().put("query", "query($ids: [ID!]!) { titles(ids: $ids) { id ratingsSummary { aggregateRating } } }")
+    private static String post(List<String> ids, boolean votes) throws IOException, JSONException {
+        String body = new JSONObject().put("query", "query($ids: [ID!]!) { titles(ids: $ids) { id ratingsSummary { aggregateRating"
+                + (votes ? " voteCount" : "") + " } } }")
                 .put("variables", new JSONObject().put("ids", new JSONArray(ids))).toString();
         HttpURLConnection c = (HttpURLConnection) new URL(API).openConnection();
         c.setConnectTimeout(8000);

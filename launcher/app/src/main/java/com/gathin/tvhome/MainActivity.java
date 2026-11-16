@@ -2448,6 +2448,17 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     }
 
     /** The first top-bar button after Inputs that is shown, in bar order (top_bar_apps, the network pill, ...); Settings is always there. */
+    private static java.util.Set<String> hiddenShortcuts(String json) {
+        java.util.Set<String> out = new java.util.HashSet<>();
+        try {
+            org.json.JSONArray a = new org.json.JSONObject(json).optJSONArray("topbar_hidden");
+            for (int i = 0; a != null && i < a.length(); i++) out.add(a.optString(i));
+        } catch (org.json.JSONException ignored) {
+            // None taken off.
+        }
+        return out;
+    }
+
     private View firstTopButton() {
         if (topBarOrder != null) return topBarOrder.first();
         ViewGroup bar = findViewById(R.id.topButtons);
@@ -2584,11 +2595,20 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         insightCard = new InsightCard(this, handler, (LinearLayout) findViewById(R.id.clock).getParent(),
                 () -> firstTopButton().requestFocus(),
                 () -> feedHome.focusTop());
-        feed.setInsightsListener(insightCard::update);
+        // The insights also carry the shortcuts taken off the top bar, which the Feed screen keeps.
+        feed.setInsightsListener(json -> {
+            insightCard.update(json);
+            if (topBarOrder != null) topBarOrder.setHidden(hiddenShortcuts(json));
+        });
         // Liquid glass over a faint dark base on the top bar's buttons: the header's art behind them can be bright.
-        for (int id : new int[] {R.id.btnSearch, R.id.btnInputs, R.id.btnWifi, R.id.btnBluetooth, R.id.btnSettings}) {
+        for (int id : new int[] {R.id.btnSearch, R.id.btnWatchlist, R.id.btnInputs, R.id.btnWifi, R.id.btnBluetooth, R.id.btnSettings}) {
             findViewById(id).setBackgroundResource(R.drawable.pill_bg_feed);
         }
+        View watchlist = findViewById(R.id.btnWatchlist);
+        watchlist.setVisibility(View.VISIBLE);
+        watchlist.setOnClickListener(v -> {
+            if (topBarOrder == null || !topBarOrder.finishClick(v)) feedHome.openWatchlist();
+        });
         View search = findViewById(R.id.btnSearch);
         search.setVisibility(View.VISIBLE);
         search.setOnClickListener(v -> {
@@ -2610,7 +2630,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 }
             }
         });
-        topBarOrder = new TopBarOrder(this, findViewById(R.id.topButtons), this::showSettingsMenu);
+        topBarOrder = new TopBarOrder(this, findViewById(R.id.topButtons), this::showSettingsMenu, feed::hideTopBarButton);
         // A shorter date beside the clock: "THU, 29 OCT".
         android.widget.TextClock date = findViewById(R.id.date);
         date.setFormat12Hour("EEE, d MMM");

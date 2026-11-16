@@ -552,10 +552,11 @@ final class Feed {
      * Read more: the title's cast, crew and facts, which the add-on fetches when asked (a second or two the first
      * time). Column -> value on the main thread, or null when it has none or is too old to know the question.
      */
-    void details(String tmdb, String titleWithoutRating, String year, Consumer<Map<String, String>> onDone) {
-        Uri.Builder b = uri.buildUpon().path("details").appendQueryParameter("tmdb", tmdb);
-        // A title Home has no rating for: the add-on looks one up too.
-        if (titleWithoutRating != null) b.appendQueryParameter("title", titleWithoutRating).appendQueryParameter("year", year);
+    void details(String tmdb, String title, String year, boolean fresh, Consumer<Map<String, String>> onDone) {
+        // With the title the add-on also looks up IMDb's rating and how many rated it; fresh asks again whatever it kept.
+        Uri.Builder b = uri.buildUpon().path("details").appendQueryParameter("tmdb", tmdb)
+                .appendQueryParameter("title", title).appendQueryParameter("year", year);
+        if (fresh) b.appendQueryParameter("fresh", "1");
         Uri q = b.build();
         try {
             io.execute(() -> {
@@ -648,6 +649,21 @@ final class Feed {
         }
     }
 
+    /** Takes a shortcut off the top bar for good: the add-on keeps the list, and its Feed screen puts it back. */
+    void hideTopBarButton(String name) {
+        try {
+            io.execute(() -> {
+                try {
+                    ctx.getContentResolver().call(authority, "topbar_hide", name, null);
+                } catch (RuntimeException tooOld) {
+                    // An add-on without the list: the shortcut comes back when Home restarts.
+                }
+            });
+        } catch (RejectedExecutionException shutDown) {
+            // Home is being destroyed.
+        }
+    }
+
     /** Opens the add-on's QR code and PIN screen, for typing a search on a phone. False when the add-on has none. */
     boolean openPhoneSearch() {
         try {
@@ -676,6 +692,50 @@ final class Feed {
         } catch (RejectedExecutionException shutDown) {
             // Home is being destroyed.
         }
+    }
+
+    /** IMDb's rating and count for a title without a TMDB id, by its name: what {@link #details} gives the others. */
+    void rating(String title, String year, boolean fresh, Consumer<Map<String, String>> onDone) {
+        Uri.Builder b = uri.buildUpon().path("rating").appendQueryParameter("title", title).appendQueryParameter("year", year);
+        if (fresh) b.appendQueryParameter("fresh", "1");
+        Uri q = b.build();
+        try {
+            io.execute(() -> {
+                Map<String, String> out = null;
+                try (Cursor c = ctx.getContentResolver().query(q, null, null, null, null)) {
+                    if (c != null && c.moveToFirst()) {
+                        out = new java.util.HashMap<>();
+                        for (String col : c.getColumnNames()) out.put(col, s(c, col));
+                    }
+                } catch (RuntimeException gone) {
+                    // An add-on too old to answer: the popup keeps Home's rating.
+                }
+                Map<String, String> found = out;
+                main.post(() -> onDone.accept(found));
+            });
+        } catch (RejectedExecutionException shutDown) {
+            // Home is being destroyed.
+        }
+    }
+
+    /** How many rated a title, short: "999", "1.2k", "34k", "1.2M"; "" when unknown. */
+    static String votes(String count) {
+        long n;
+        try {
+            n = Long.parseLong(count.trim());
+        } catch (RuntimeException e) {
+            return "";
+        }
+        if (n <= 0) return "";
+        if (n < 1000) return String.valueOf(n);
+        if (n < 10_000) return trim(Math.floor(n / 100.0) / 10) + "k";
+        if (n < 1_000_000) return (n / 1000) + "k";
+        return trim(Math.floor(n / 100_000.0) / 10) + "M";
+    }
+
+    /** 1.0 -> "1", 1.2 -> "1.2". */
+    private static String trim(double v) {
+        return v == Math.floor(v) ? String.valueOf((long) v) : String.format(java.util.Locale.ROOT, "%.1f", v);
     }
 
     /** The same title opening in another of its apps. */

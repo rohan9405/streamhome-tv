@@ -31,6 +31,20 @@
     <string name="insight_cricket_result">Result</string>
     <string name="insight_cricket_today">Today</string>
     <string name="insight_cricket_tomorrow">Tomorrow</string>
+    <string name="watchlist">Watchlist</string>
+    <string name="watchlist_movies">Movies</string>
+    <string name="watchlist_series">TV series</string>
+    <string name="watchlist_empty">Nothing here yet. Hold OK on a title and choose Add to watchlist.</string>
+    <string name="watchlist_add">+ Add to watchlist</string>
+    <string name="watchlist_remove">− Remove from watchlist</string>
+    <string name="watchlist_added">Added to your watchlist</string>
+    <string name="watchlist_removed">Removed from your watchlist</string>
+    <string name="feed_refresh_rating">Refresh rating</string>
+    <string name="feed_refreshing_rating">Refreshing…</string>
+    <string name="feed_rating_updated">IMDb rating updated</string>
+    <string name="feed_rating_same">IMDb rating is up to date</string>
+    <string name="feed_rating_none">IMDb has no rating for this yet</string>
+    <string name="feed_votes">%1$s ratings</string>
     <string name="feed_search_hint">Search films and shows</string>
     <string name="feed_search_prompt">Type a title. Your streaming apps are searched together.</string>
     <string name="feed_search_looking">Searching…</string>
@@ -76,7 +90,7 @@
     <string name="insight_updated">Updated %1$s</string>
     <string name="insight_prices_at">prices as of %1$s</string>
     <string name="insight_stale">couldn\'t refresh, showing the last figures</string>
-    <string name="insight_reconnect_help">INDmoney asks for a new sign-in. Sign in again on the computer (my-tv/indmoney-signin.py), then run my-tv/indmoney-pair.sh.</string>
+    <string name="insight_reconnect_help">INDmoney asks for a new sign-in. Open Apps, Feed, Connections, Portfolio &amp; markets, and sign in on the TV.</string>
     <string name="insight_source_markets">From INDmoney, read-only.</string>
     <string name="insight_source">From INDmoney, read-only. Each class\'s day is INDmoney\'s own; the total is their sum.</string>
 </resources>

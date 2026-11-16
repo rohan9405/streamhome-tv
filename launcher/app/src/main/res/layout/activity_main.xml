@@ -371,6 +371,15 @@
                     android:drawableStart="@drawable/ic_search"
                     android:nextFocusDown="@+id/grid" />
 
+                <!-- feed_package (FeedHome): the watchlist. -->
+                <TextView
+                    android:id="@+id/btnWatchlist"
+                    style="@style/TopButtonIcon"
+                    android:visibility="gone"
+                    android:contentDescription="@string/watchlist"
+                    android:drawableStart="@drawable/ic_bookmark"
+                    android:nextFocusDown="@+id/grid" />
+
                 <TextView
                     android:id="@+id/btnInputs"
                     style="@style/TopButton"

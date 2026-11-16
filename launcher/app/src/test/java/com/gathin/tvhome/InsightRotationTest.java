@@ -13,14 +13,14 @@ public class InsightRotationTest {
     @Test public void rotatesAllAvailableClassesBeforeTheMarkets() throws Exception {
         List<JSONObject> views = InsightRotation.views(data());
         assertEquals(6, views.size());
-        String[] names = {"Portfolio", "Mutual Funds", "Equity", "US Stocks", "NIFTY", "SENSEX"};
+        String[] names = {"Portfolio", "MF", "Equity", "US Stocks", "NIFTY", "SENSEX"};
         for (int i = 0; i < names.length; i++) assertEquals(names[i], views.get(i).getString("chip_name"));
     }
     @Test public void totalAndClassesHaveIndependentVisibilityWithoutChangingTotals() throws Exception {
         JSONObject input = data().put("views", new JSONObject("{portfolio:false,mf:true,in:false,us:false,nifty:false,sensex:true}"));
         List<JSONObject> views = InsightRotation.views(input);
         assertEquals(2, views.size());
-        assertEquals("Mutual Funds", views.get(0).getString("chip_name"));
+        assertEquals("MF", views.get(0).getString("chip_name"));
         assertEquals("SENSEX", views.get(1).getString("chip_name"));
         assertEquals(15, input.getJSONObject("portfolio").getDouble("change"), 0);
         assertFalse(input.getJSONObject("portfolio").has("chip_name"));

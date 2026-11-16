@@ -40,6 +40,8 @@ final class Item {
     /** Cache file names served by FeedProvider, empty until downloaded. */
     String poster = "";
     String backdrop = "";
+    /** Its original language ("hi"), for the header's language choice; "" when not known. */
+    String language = "";
     /** The header's title logo, a cache file name with transparency; empty: the header writes the title as text. */
     String logo = "";
     String intent = "";
@@ -58,7 +60,7 @@ final class Item {
                 .put("section", section).put("tab", tab).put("row", row).put("row_order", rowOrder)
                 .put("title", title).put("subtitle", subtitle).put("overview", overview).put("kind", kind)
                 .put("year", year).put("released", released).put("genre", genre).put("rating", rating).put("progress", progress)
-                .put("poster_source", posterSource).put("poster", poster).put("backdrop", backdrop).put("logo", logo)
+                .put("poster_source", posterSource).put("poster", poster).put("backdrop", backdrop).put("logo", logo).put("language", language)
                 .put("intent", intent).put("package", pkg).put("hero", hero).put("popularity", popularity)
                 .put("plain_art", plainArt).put("engaged", engaged).put("tmdb", tmdb);
     }
@@ -82,6 +84,7 @@ final class Item {
         i.poster = o.optString("poster");
         i.backdrop = o.optString("backdrop");
         i.logo = o.optString("logo");
+        i.language = o.optString("language");
         i.intent = o.optString("intent");
         i.pkg = o.optString("package");
         i.hero = o.optBoolean("hero");

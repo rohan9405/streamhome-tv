@@ -28,6 +28,14 @@ final class Indmoney {
     private static final String TOKEN = "https://mcp.indmoney.com/token";
     private static final String RESOURCE = "https://mcp.indmoney.com/mcp";
     private static final int TIMEOUT_MS = 15000;
+    private static final String REGISTER = "https://mcp.indmoney.com/register";
+    private static final String AUTHORIZE = "https://mcp.indmoney.com/authorize";
+    private static final String SCOPE = "portfolio:read market:read";
+    /**
+     * Where INDmoney sends the browser after sign-in: the loopback address the computer's sign-in also uses. On the TV the
+     * sign-in page's own web view catches it before anything loads.
+     */
+    static final String RETURN = "http://127.0.0.1:53682/callback";
 
     /** INDmoney refused the sign-in: someone has to sign in again. */
     static final class ReconnectNeeded extends Exception {
@@ -48,6 +56,111 @@ final class Indmoney {
         ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().clear()
                 .putString("client_id", clientId.trim()).putString("client_secret", clientSecret.trim())
                 .putString("refresh_token", refreshToken.trim()).commit();
+    }
+
+    /** A sign-in the TV started: the client, and the PKCE secret and state only the TV holds. */
+    static final class SignIn {
+        final String clientId, clientSecret, verifier, state, url;
+
+        SignIn(String clientId, String clientSecret, java.security.SecureRandom random) {
+            this.clientId = clientId;
+            this.clientSecret = clientSecret;
+            verifier = token(random, 48);
+            state = token(random, 16);
+            String challenge;
+            try {
+                challenge = android.util.Base64.encodeToString(java.security.MessageDigest.getInstance("SHA-256")
+                        .digest(verifier.getBytes(StandardCharsets.US_ASCII)), android.util.Base64.URL_SAFE | android.util.Base64.NO_PADDING | android.util.Base64.NO_WRAP);
+            } catch (java.security.NoSuchAlgorithmException e) {
+                throw new IllegalStateException(e);
+            }
+            url = AUTHORIZE + "?response_type=code&client_id=" + enc(clientId) + "&redirect_uri=" + enc(RETURN)
+                    + "&scope=" + enc(SCOPE).replace("+", "%20") + "&state=" + enc(state) + "&code_challenge=" + enc(challenge)
+                    + "&code_challenge_method=S256&resource=" + enc(RESOURCE);
+        }
+
+        private static String token(java.security.SecureRandom random, int bytes) {
+            byte[] b = new byte[bytes];
+            random.nextBytes(b);
+            return android.util.Base64.encodeToString(b, android.util.Base64.URL_SAFE | android.util.Base64.NO_PADDING | android.util.Base64.NO_WRAP);
+        }
+    }
+
+    /**
+     * Starts a sign-in on the TV: the client this TV already has (every sign-in so far registered one for {@link #RETURN}),
+     * or a new read-only one registered now.
+     */
+    SignIn begin() throws IOException {
+        String id = prefs.getString("client_id", ""), secret = prefs.getString("client_secret", "");
+        if (id.isEmpty() || secret.isEmpty()) {
+            HttpURLConnection c = open(REGISTER);
+            c.setRequestProperty("Content-Type", "application/json");
+            try {
+                write(c, new JSONObject(map("client_name", "StreamHome", "redirect_uris", new JSONArray().put(RETURN),
+                        "grant_types", new JSONArray().put("authorization_code").put("refresh_token"),
+                        "response_types", new JSONArray().put("code"), "token_endpoint_auth_method", "client_secret_post",
+                        "scope", SCOPE)).toString());
+                if (c.getResponseCode() / 100 != 2) throw new IOException("register " + c.getResponseCode());
+                JSONObject client = new JSONObject(read(c.getInputStream()));
+                id = client.getString("client_id");
+                secret = client.getString("client_secret");
+            } catch (JSONException e) {
+                throw new IOException("register: not JSON", e);
+            } finally {
+                c.disconnect();
+            }
+        }
+        return new SignIn(id, secret, new java.security.SecureRandom());
+    }
+
+    /**
+     * Ends a sign-in with the address INDmoney sent the web view to: its code, traded with the secret only this TV has,
+     * becomes the TV's sign-in. Nothing is changed unless INDmoney accepts it.
+     */
+    static void finish(Context ctx, SignIn s, String returned) throws IOException {
+        String[] codeState = codeAndState(returned);
+        if (codeState == null) throw new IOException("INDmoney did not send a sign-in back.");
+        if (!s.state.equals(codeState[1])) throw new IOException("That answer belongs to another sign-in.");
+        String form = "grant_type=authorization_code&code=" + enc(codeState[0]) + "&redirect_uri=" + enc(RETURN)
+                + "&client_id=" + enc(s.clientId) + "&client_secret=" + enc(s.clientSecret) + "&code_verifier=" + enc(s.verifier)
+                + "&resource=" + enc(RESOURCE);
+        HttpURLConnection c = open(TOKEN);
+        c.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
+        try {
+            write(c, form);
+            int code = c.getResponseCode();
+            if (code / 100 != 2) throw new IOException("INDmoney did not accept the sign-in (" + code + ").");
+            JSONObject t = new JSONObject(read(c.getInputStream()));
+            pair(ctx, s.clientId, s.clientSecret, t.getString("refresh_token"));
+        } catch (JSONException e) {
+            throw new IOException("INDmoney's answer was not what was expected.", e);
+        } finally {
+            c.disconnect();
+        }
+    }
+
+    /** {code, state} from the address INDmoney sent the browser to, or only its query; null without them. */
+    static String[] codeAndState(String returned) {
+        if (returned == null) return null;
+        String s = returned.trim();
+        int q = s.indexOf('?');
+        if (q >= 0) s = s.substring(q + 1);
+        int hash = s.indexOf('#');
+        if (hash >= 0) s = s.substring(0, hash);
+        String code = null, state = null;
+        for (String pair : s.split("&")) {
+            int eq = pair.indexOf('=');
+            if (eq <= 0) continue;
+            String value;
+            try {
+                value = java.net.URLDecoder.decode(pair.substring(eq + 1), "UTF-8");
+            } catch (java.io.UnsupportedEncodingException | IllegalArgumentException e) {
+                continue;
+            }
+            if ("code".equals(pair.substring(0, eq))) code = value;
+            if ("state".equals(pair.substring(0, eq))) state = value;
+        }
+        return code == null || state == null || code.isEmpty() || !code.matches("[A-Za-z0-9._~-]{1,512}") ? null : new String[] {code, state};
     }
 
     boolean paired() {

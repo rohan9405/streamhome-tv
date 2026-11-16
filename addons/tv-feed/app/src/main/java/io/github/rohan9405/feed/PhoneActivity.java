@@ -137,7 +137,7 @@ public final class PhoneActivity extends Activity {
         return t;
     }
 
-    private static Bitmap qr(String text, int size) throws WriterException {
+    static Bitmap qr(String text, int size) throws WriterException {
         BitMatrix m = new QRCodeWriter().encode(text, BarcodeFormat.QR_CODE, size, size,
                 Collections.singletonMap(EncodeHintType.MARGIN, 2));
         int[] pixels = new int[size * size];

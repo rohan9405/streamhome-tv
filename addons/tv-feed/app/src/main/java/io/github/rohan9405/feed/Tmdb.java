@@ -52,6 +52,8 @@ final class Tmdb {
         String overview = "";
         String backdrop = "";    // full image URL, 16:9
         double popularity;
+        /** Its original language ("hi"); "" when not known yet. */
+        String language = "";
         /** Search: the packages of the apps it streams on here, in TMDB's order. */
         List<String> services = new ArrayList<>();
     }
@@ -59,6 +61,8 @@ final class Tmdb {
     /** Read more's facts about one title; "" or 0 where TMDB has none. */
     static final class Details {
         String overview = "", tagline = "", released = "", certification = "", language = "", status = "";
+        /** The title's 16:9 picture, a full TMDB image address; "" when it has none. */
+        String backdrop = "";
         /** Names, comma-separated, best known first. */
         String cast = "", directors = "", creators = "";
         /** Minutes: a film's length, a series' usual episode. */
@@ -222,9 +226,34 @@ final class Tmdb {
 
     /** The title's logo as an image URL, for the header, kept a month; empty when TMDB has none we can use. */
     String logo(String kindAndId) {
-        if (kindAndId == null || !kindAndId.matches("(movie|tv):\\d+")) return "";
+        return images(kindAndId)[0];
+    }
+
+    /**
+     * The title's logo and a backdrop with no text on it, for the header, from one answer kept a month; "" where TMDB
+     * has none. JustWatch's pictures often have the title printed on them, under the header's own title.
+     */
+    String[] images(String kindAndId) {
+        if (kindAndId == null || !kindAndId.matches("(movie|tv):\\d+")) return new String[] {"", ""};
         JSONObject o = get("/3/" + kindAndId.replace(':', '/') + "/images?include_image_language=en,hi,null", FIXED_MS);
-        return pickLogo(o);
+        return new String[] {pickLogo(o), pickBackdrop(o)};
+    }
+
+    /** The best-voted backdrop without a language, which TMDB uses for pictures with no text on them. */
+    static String pickBackdrop(JSONObject images) {
+        JSONArray all = images == null ? null : images.optJSONArray("backdrops");
+        for (int i = 0; all != null && i < all.length(); i++) {
+            JSONObject b = all.optJSONObject(i);
+            if (b != null && b.isNull("iso_639_1") && !b.optString("file_path").isEmpty()) return IMAGES + "w1280" + b.optString("file_path");
+        }
+        return "";
+    }
+
+    /** The title's original language ("hi"), kept a month (it never changes); "" when TMDB does not say. */
+    String language(String kindAndId) {
+        if (kindAndId == null || !kindAndId.matches("(movie|tv):\\d+")) return "";
+        JSONObject o = get("/3/" + kindAndId.replace(':', '/'), FIXED_MS);
+        return o == null ? "" : o.optString("original_language");
     }
 
     /** English first, then Hindi, then one with no language; PNG only (TMDB also has SVGs, which Android cannot decode). */
@@ -330,6 +359,8 @@ final class Tmdb {
         Details d = new Details();
         boolean film = "movie".equals(kind);
         d.overview = o.optString("overview");
+        String backdrop = o.isNull("backdrop_path") ? "" : o.optString("backdrop_path");
+        d.backdrop = backdrop.isEmpty() ? "" : IMAGES + "w780" + backdrop;
         d.tagline = o.optString("tagline");
         d.released = o.optString(film ? "release_date" : "first_air_date");
         d.status = film ? "" : o.optString("status");
@@ -435,6 +466,7 @@ final class Tmdb {
             t.year = Pick.year(date);
             t.released = date;
             t.overview = r.optString("overview");
+            t.language = r.optString("original_language");
             String backdrop = r.isNull("backdrop_path") ? "" : r.optString("backdrop_path");
             t.backdrop = backdrop.isEmpty() ? "" : IMAGES + "w1280" + backdrop;
             t.popularity = r.optDouble("popularity", 0);

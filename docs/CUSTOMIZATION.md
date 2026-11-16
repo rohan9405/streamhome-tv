@@ -15,8 +15,11 @@ Use the remote for everyday changes. The checked-in theme supplies defaults for 
 | Hold OK on a recommendation | Mark as seen, Read more, or Open; seen titles are replaced in place |
 | Hold OK on the header | Read more |
 | Hold OK on a search result | Play, or Read more |
+| Read more | Add to or remove from the watchlist, Refresh rating |
+| Hold OK on a watchlist card | Remove from watchlist, or Read more |
 | Apps → Feed → Header | Title logos on, or titles written as text |
 | Apps → Feed → Cricket | Cricket on or off, teams, seconds per match, matches together or in turn |
+| Apps → Feed → Connections → Portfolio & markets | INDmoney sign-in on the TV, typed with the remote or from a phone |
 | Apps → Feed → Phone page | QR code and PIN for adding keys from a phone |
 | Hold OK on Continue watching | Open or remove locally |
 | Focus a service or genre tab | Change that row |

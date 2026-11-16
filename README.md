@@ -74,6 +74,12 @@ YouTube gets its own treatment: recent Subscriptions and Recommended videos publ
 
 With a TMDB token, header titles show their own logo where TMDB has a usable one, and the written title otherwise. Apps → Feed → Header turns logos off.
 
+### Your watchlist
+
+Read more has **Add to watchlist**. The **Watchlist** (the bookmark in the top bar, or its tile among your apps, which you can add to the drawer) has **Movies** and **TV series** tabs, the latest added first, on the same cards as Top 10. Press **OK** to watch, or hold **OK** for **Remove from watchlist** and **Read more**. The list is kept on the TV.
+
+Read more also shows how many people rated a title on IMDb ("34k ratings"), and **Refresh rating** asks IMDb again for the latest rating.
+
 ### Search across your apps
 
 **Search** in the top bar looks for films and shows across your streaming apps. Each result is a picture and title with the logos of the installed apps it streams on in India. Press **OK** to open it in your first app that has it. Hold **OK** for **Play** (one line per app when it is on several) and **Read more**, which includes the IMDb rating. Titles on none of your apps stay in the results, marked **Not on your apps**.
@@ -174,12 +180,12 @@ India, Business & markets and Technology start enabled; other topics start disab
 
 ## Connectors and keys
 
-StreamHome works with **no keys at all**: Home, your apps, Continue watching and app-published rows need none, and the header falls back to JustWatch. Each key below switches on one thing. Keys are entered on your computer (hidden prompt), checked, kept in `~/.cleantv-private` and sent to the TV; they are never part of this repository.
+StreamHome works with **no keys at all**: Home, your apps, Continue watching and app-published rows need none, and the header uses JustWatch. Each key below switches on one thing. Keys are entered on your computer (hidden prompt), checked, kept in `~/.cleantv-private` and sent to the TV; they are never part of this repository.
 
 | Connector | Needs | Free tier | Without it | Where a missing or refused key shows |
 |---|---|---|---|---|
 | Streaming apps' own rows | Nothing (TV listings permission) | — | — | Feed screen |
-| New releases, genres, Read more | TMDB API Read Access Token | Yes | Header uses JustWatch; genres off; Read more says it needs TMDB | Feed screen, Read more popup |
+| New releases, genres, Read more | TMDB API Read Access Token | Yes | Header uses JustWatch alone; genres off; Read more says it needs TMDB | Feed screen, Read more popup |
 | Search, header title logos | The same TMDB token | Yes | Search says it needs TMDB; the header writes titles as text | Search screen |
 | Cricket scores | Nothing (ESPN's public scoreboard, unofficial) | — | Off until you choose teams | — |
 | IMDb ratings | OMDb API key | Yes, 1,000 a day | Only new catalogue titles get IMDb's rating | Feed screen |
@@ -245,7 +251,7 @@ Home opens with saved rows immediately, then refreshes asynchronously. A progres
 
 Continue watching and app-published recommendation rows depend on the installed apps and their signed-in accounts. Netflix and SonyLIV do not publish rows in the tested setup, so their discovery tabs use TMDB's popular catalogue titles in India. Header selections and genre pools are catalogue discovery rather than personalised viewing recommendations.
 
-TMDB selects recent original releases and new seasons, not the date an older film joined a service. If TMDB is unavailable or unconfigured, the header can fall back to JustWatch's new additions in India; its definition of newness therefore differs. Weekly episodes from an older season do not automatically make a TMDB title new.
+The header combines what JustWatch says each service added (asked at most twice a day, after 9 am and 9 pm on the TV's clock) with TMDB's recent premieres and new seasons. Without TMDB, the header shows JustWatch's additions alone. Weekly episodes from an older season do not automatically make a TMDB title new.
 
 ## Set it up
 
@@ -286,12 +292,16 @@ The scripts prompt for keys; do not paste them into committed files. With no TMD
 
 ### 2. Optional: portfolio and market insights
 
+On the TV, no computer needed: open **Apps → Feed → Connections → Portfolio & markets**. INDmoney's own sign-in page opens on the TV. Type your mobile number and then the code INDmoney texts you, either with the remote (OK on the box opens the TV's number pad; its → key goes on) or from a phone: scan the QR code in the corner, enter the PIN, and what you type on the phone goes into the box selected on the TV. The TV finishes the sign-in itself. Use the same steps whenever the chip reads **Reconnect**.
+
+Or from the computer:
+
 ```bash
 python3 my-tv/indmoney-signin.py
 my-tv/indmoney-pair.sh
 ```
 
-Complete sign-in on INDmoney's own page. The scripts keep local credentials outside the repository and hand the grant to the TV. Open **Apps → Feed** to switch the chip or portfolio off, or change rotation. Repeat these scripts if INDmoney requires a new sign-in; automatic renewal cannot override revoked or expired authorisation.
+Complete sign-in on INDmoney's own page. The scripts keep local credentials outside the repository and hand the grant to the TV. Open **Apps → Feed** to switch the chip or portfolio off, or change rotation. Sign in again on the TV, or repeat these scripts, if INDmoney requires a new sign-in; automatic renewal cannot override revoked or expired authorisation.
 
 ### 3. Optional: news in Google Ambient
 
@@ -376,7 +386,7 @@ No ads, sponsored rows or app analytics are added by this project. Connected fea
 - App and catalogue data vary by service, region and firmware. A title can open the app's home screen when no usable title link exists.
 - Watch Next coverage depends on each app. Removing an item affects StreamHome, not the service's own watch history.
 - Portfolio figures and indices are snapshots with different source timestamps, not a continuously streaming trading terminal. Missing asset classes are omitted.
-- INDmoney can require renewed sign-in. The current recovery path uses the computer scripts, not a TV QR code.
+- INDmoney can require renewed sign-in; it is done again on the TV, as the first time. The sign-in page is INDmoney's own and can change without notice. Phone typing crosses your home network unencrypted, behind a PIN, while the sign-in screen is open.
 - Ambient News depends on Android overlay/screensaver behaviour, usable publisher photos and connector availability. Google News page parsing can break after upstream changes.
 - Drip spending, and cricket or financial cards on the screensaver, are not implemented here. Finance and cricket live on the Home chip and its detail popup.
 
@@ -392,4 +402,4 @@ StreamHome is published by [Soft Orbit Apps](https://softorbit-apps.vercel.app/)
 
 Built on [CleanYourTV](https://github.com/Gathin23/cleanyourtv) by Gathin23 and contributors, including the launcher foundations, device tools and safety checks. MIT licence; see [LICENSE](LICENSE).
 
-Ratings use OMDb, with IMDb's own rating for new titles OMDb has not rated yet (limited personal, non-commercial use). Titles, artwork and metadata use TMDB, with a JustWatch fallback for new releases and JustWatch for opening a title's page in its app. This product uses the TMDB API but is not endorsed or certified by TMDB. Optional financial data uses INDmoney's official MCP; news uses Google News, TheNewsAPI and the original publishers. This project is independent of Sony and these service providers.
+Ratings use OMDb, with IMDb's own rating for new titles OMDb has not rated yet (limited personal, non-commercial use). Titles, artwork and metadata use TMDB, with JustWatch for new releases and for opening a title's page in its app. This product uses the TMDB API but is not endorsed or certified by TMDB. Optional financial data uses INDmoney's official MCP; news uses Google News, TheNewsAPI and the original publishers. This project is independent of Sony and these service providers.

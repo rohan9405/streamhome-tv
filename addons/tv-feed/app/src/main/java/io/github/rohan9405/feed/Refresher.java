@@ -257,6 +257,7 @@ final class Refresher {
         // Ratings (OMDb), then the header's ranking, then art.
         step(ctx, 70);
         Omdb omdb = new Omdb(ctx, RATING_BUDGET);
+        Imdb asked = new Imdb(ctx);
         Map<Item, String> unrated = new LinkedHashMap<>();
         Tmdb ids = new Tmdb(ctx);
         int rated = 0;
@@ -271,7 +272,8 @@ final class Refresher {
                 if (!id.isEmpty()) unrated.put(i, id);
             }
             if (e == null) continue;
-            i.rating = e.rating;
+            String recent = e.imdbId.isEmpty() ? "" : asked.kept(e.imdbId);
+            i.rating = recent.isEmpty() ? e.rating : recent;
             if (i.genre.isEmpty()) i.genre = e.genre;
             if (i.kind.isEmpty()) i.kind = "series".equals(e.type) ? "tv" : "movie".equals(e.type) ? "movie" : "";
         }
@@ -285,14 +287,18 @@ final class Refresher {
         Map<String, Integer> heroCount = new LinkedHashMap<>();
         for (Item i : items) if (Item.HERO.equals(i.section)) heroCount.merge(i.tab, 1, Integer::sum);
         android.util.Log.i("Feed", "header candidates " + heroCount);
+        items = Languages.keep(ctx, items, ids);
         items = keepHeroTop(items);
         ExecutorService pool = Executors.newFixedThreadPool(4);
         List<Future<?>> jobs = new ArrayList<>();
         for (Item i : items) {
             jobs.add(pool.submit(() -> {
                 if (Item.HERO.equals(i.section)) {
+                    // TMDB's picture with no text on it where it has one: the header writes the title itself.
+                    String[] art = ids.images(i.tmdb);
+                    if (!art[1].isEmpty()) i.posterSource = art[1];
                     i.backdrop = Images.cache(ctx, i.posterSource, true);
-                    i.logo = Images.cacheLogo(ctx, ids.logo(i.tmdb));
+                    i.logo = Images.cacheLogo(ctx, art[0]);
                 }
                 else i.poster = Images.cache(ctx, i.posterSource, false);
             }));
@@ -354,23 +360,17 @@ final class Refresher {
     private static List<Item> fromService(Tmdb tmdb, JustWatch justWatch, String pkg, int provider, LocalDate today,
             List<Item> local, boolean publishes) {
         List<Item> out = new ArrayList<>();
-        // Premieres in the window, and series whose new season premiered in it; never a weekly episode of an old one.
-        List<Tmdb.Title> fresh = tmdb.usable() ? tmdb.newReleases(provider, today) : null;
-        List<Tmdb.Title> seasons = fresh == null ? null : tmdb.newSeasons(provider, today);
-        String source = "TMDB";
-        if (fresh == null || seasons == null) {
-            // TMDB unreachable or no token: what JustWatch says the service added, films and seasons together.
-            fresh = justWatch.newOn(provider, today, Providers.newDays(provider));
-            seasons = Collections.emptyList();
-            source = fresh == null ? "nothing (TMDB and JustWatch both failed)" : "JustWatch";
-            if (fresh == null) fresh = new ArrayList<>();
-        }
-        for (Tmdb.Title t : seasons) {
-            boolean dup = false;
-            for (Tmdb.Title f : fresh) dup |= f.id == t.id && f.kind.equals(t.kind);
-            if (!dup) fresh.add(t);
-        }
-        android.util.Log.i("Feed", "header " + pkg + " from " + source + ": " + fresh.size());
+        // What JustWatch says the service added (asked at most twice a day), then TMDB's premieres in the window and
+        // series whose new season premiered in it, never a weekly episode of an old one, for anything JustWatch lacks.
+        List<Tmdb.Title> added = justWatch.newOn(provider, today, Providers.newDays(provider));
+        List<Tmdb.Title> premieres = tmdb.usable() ? tmdb.newReleases(provider, today) : null;
+        List<Tmdb.Title> seasons = premieres == null ? null : tmdb.newSeasons(provider, today);
+        List<Tmdb.Title> tmdbNew = new ArrayList<>();
+        if (premieres != null) tmdbNew.addAll(premieres);
+        if (seasons != null) tmdbNew.addAll(seasons);
+        List<Tmdb.Title> fresh = merge(added, tmdbNew);
+        android.util.Log.i("Feed", "header " + pkg + ": " + fresh.size() + " (JustWatch " + (added == null ? "failed" : added.size())
+                + ", TMDB " + (premieres == null ? "failed" : tmdbNew.size()) + ")");
         for (Tmdb.Title t : fresh) {
             if (Pick.recentEnough(t.released, t.season, today)) out.add(fromTmdb(t, pkg, Item.HERO, 0));
         }
@@ -381,6 +381,24 @@ final class Refresher {
         if (!publishes) {
             List<Tmdb.Title> top = tmdb.popular(provider);
             for (int i = 0; i < Math.min(TOP, top.size()); i++) out.add(fromTmdb(top.get(i), pkg, Item.APP, i + 1));
+        }
+        return out;
+    }
+
+    /** JustWatch's titles, then TMDB's that JustWatch does not have (the same kind and name, or the same TMDB id). */
+    static List<Tmdb.Title> merge(List<Tmdb.Title> justWatch, List<Tmdb.Title> tmdb) {
+        List<Tmdb.Title> out = new ArrayList<>(justWatch == null ? Collections.emptyList() : justWatch);
+        Set<String> seen = new HashSet<>();
+        for (Tmdb.Title t : out) {
+            seen.add(t.kind + "|" + t.name.toLowerCase(java.util.Locale.ROOT));
+            if (t.id > 0) seen.add(t.kind + ":" + t.id);
+        }
+        for (Tmdb.Title t : tmdb) {
+            String byName = t.kind + "|" + t.name.toLowerCase(java.util.Locale.ROOT), byId = t.kind + ":" + t.id;
+            if (seen.contains(byName) || (t.id > 0 && seen.contains(byId))) continue;
+            seen.add(byName);
+            if (t.id > 0) seen.add(byId);
+            out.add(t);
         }
         return out;
     }
@@ -440,6 +458,7 @@ final class Refresher {
         i.genre = t.genres;
         i.released = t.released;
         i.tmdb = t.id > 0 ? t.kind + ":" + t.id : "";
+        i.language = t.language;
         i.subtitle = t.season;
         i.posterSource = t.backdrop;
         i.plainArt = true;

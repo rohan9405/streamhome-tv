@@ -120,6 +120,7 @@ final class FeedHome {
     private final View[] sections = new View[7];
 
     private final Map<String, App> apps = new HashMap<>();
+    private final Watchlist watchlist;
     private List<String> drawer = new ArrayList<>();
     private final List<String> tabPkgs = new ArrayList<>();
     private String selectedTab = "";
@@ -172,6 +173,7 @@ final class FeedHome {
         prefs = act.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         // One profile exists today. Keep its history explicitly scoped for a future profile picker.
         seenPreference = "seen_titles." + prefs.getString("active_profile", "default");
+        watchlist = new Watchlist(act);
         seenTitles = new SeenTitles(prefs.getStringSet(seenPreference, Collections.emptySet()));
         hidden = new HashSet<>(hiddenApps);
         defaultDrawer = new ArrayList<>(dockApps);
@@ -552,6 +554,10 @@ final class FeedHome {
             Drawable icon = NETFLIX.equals(pkg) ? act.getDrawable(R.drawable.logo_netflix_n) : r.loadIcon(pm);
             apps.put(pkg, new App(pkg, String.valueOf(r.loadLabel(pm)), banner, icon));
         }
+        // The watchlist is an app tile like any other, for the drawer or the grid; Home opens it itself.
+        if (!hidden.contains(Watchlist.PKG)) {
+            apps.put(Watchlist.PKG, new App(Watchlist.PKG, act.getString(R.string.watchlist), null, act.getDrawable(R.drawable.ic_bookmark)));
+        }
         String saved = prefs.getString(DRAWER, null);
         List<String> want = saved == null ? defaultDrawer : Arrays.asList(TextUtils.split(saved, ","));
         drawer = new ArrayList<>();
@@ -645,9 +651,11 @@ final class FeedHome {
     private void drawerMenu(int index) {
         String pkg = drawer.get(index);
         App a = apps.get(pkg);
-        menu(drawerBand.getChildAt(index), a == null ? pkg : a.label, new String[] {
+        // The watchlist is not an installed app: no App info for it.
+        int count = Watchlist.PKG.equals(pkg) ? 3 : 4;
+        menu(drawerBand.getChildAt(index), a == null ? pkg : a.label, Arrays.copyOf(new String[] {
                 act.getString(R.string.feed_open), act.getString(R.string.feed_move),
-                act.getString(R.string.feed_remove), act.getString(R.string.feed_app_info)}, new Runnable[] {
+                act.getString(R.string.feed_remove), act.getString(R.string.feed_app_info)}, count), Arrays.copyOf(new Runnable[] {
                 () -> launch(pkg),
                 () -> {
                     movingIndex = index;
@@ -664,7 +672,7 @@ final class FeedHome {
                     update();
                     focusDrawer();
                 },
-                () -> appInfo(pkg)});
+                () -> appInfo(pkg)}, count));
     }
 
     private void endMove(boolean save) {
@@ -716,8 +724,9 @@ final class FeedHome {
             tile.setOnFocusChangeListener((v, has) -> lift(v, has, 1.1f));
             tile.setOnClickListener(v -> launch(a.pkg));
             tile.setOnLongClickListener(v -> {
-                menu(v, a.label, new String[] {act.getString(R.string.feed_open), act.getString(R.string.feed_add),
-                        act.getString(R.string.feed_app_info)}, new Runnable[] {
+                int count = Watchlist.PKG.equals(a.pkg) ? 2 : 3;
+                menu(v, a.label, Arrays.copyOf(new String[] {act.getString(R.string.feed_open), act.getString(R.string.feed_add),
+                        act.getString(R.string.feed_app_info)}, count), Arrays.copyOf(new Runnable[] {
                         () -> launch(a.pkg),
                         () -> {
                             drawer.add(a.pkg);
@@ -728,7 +737,7 @@ final class FeedHome {
                             update();
                             focusDrawer();
                         },
-                        () -> appInfo(a.pkg)});
+                        () -> appInfo(a.pkg)}, count));
                 return true;
             });
             tile.setOnKeyListener((v, key, e) -> {
@@ -1036,8 +1045,11 @@ final class FeedHome {
                             notifyItemChanged(pos);
                         }});
                     } else {
-                        List<String> labels = new ArrayList<>(Arrays.asList("Mark as seen", "Read more", act.getString(R.string.feed_open)));
-                        List<Runnable> actions = new ArrayList<>(Arrays.asList(() -> markSeen(entry), () -> showDetails(entry), () -> watch(entry)));
+                        boolean kept = watchlist.contains(entry);
+                        List<String> labels = new ArrayList<>(Arrays.asList("Mark as seen", "Read more",
+                                act.getString(kept ? R.string.watchlist_remove : R.string.watchlist_add), act.getString(R.string.feed_open)));
+                        List<Runnable> actions = new ArrayList<>(Arrays.asList(() -> markSeen(entry), () -> showDetails(entry),
+                                () -> toggleWatchlist(entry), () -> watch(entry)));
                         if (lastSeenEntry != null) {
                             labels.add("Undo last seen");
                             actions.add(FeedHome.this::undoLastSeen);
@@ -1555,6 +1567,30 @@ final class FeedHome {
      * already has shows at once; the cast and the rest arrive from the add-on, which asks TMDB the first time.
      */
     private void showDetails(Feed.Entry e) {
+        showDetails(e, null);
+    }
+
+    /** The rating Read more shows: IMDb's own as just asked, else the one Home had. */
+    private static String shownRating(Feed.Entry e, Map<String, String> d) {
+        String asked = d == null ? "" : d.getOrDefault("imdb_rating", "");
+        return asked.isEmpty() ? e.rating : asked;
+    }
+
+    /** The IMDb tag, then how many rated it ("34k ratings"), then the rest of the facts line. */
+    private void showRating(LinearLayout tagBox, TextView meta, Feed.Entry e, Map<String, String> d) {
+        tagBox.removeAllViews();
+        String rating = shownRating(e, d);
+        if (!rating.isEmpty()) imdbTag(tagBox, rating, true);
+        ((LinearLayout.LayoutParams) meta.getLayoutParams()).leftMargin = rating.isEmpty() ? 0 : dp(10);
+        String votes = Feed.votes(d == null ? "" : d.getOrDefault("imdb_votes", ""));
+        String facts = detailsMeta(e, d);
+        meta.setText(votes.isEmpty() || rating.isEmpty() ? facts
+                : act.getString(R.string.feed_votes, votes) + (facts.isEmpty() ? "" : "  ·  " + facts));
+        meta.requestLayout();
+    }
+
+    /** Read more; {@code afterClose} runs when it closes (the watchlist redraws, in case the title was removed). */
+    private void showDetails(Feed.Entry e, Runnable afterClose) {
         Dialog dialog = new Dialog(act);
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
         LinearLayout box = column();
@@ -1573,7 +1609,11 @@ final class FeedHome {
         art.setBackground(rounded(0x1AFFFFFF, dp(12)));
         top.addView(art, new LinearLayout.LayoutParams(dp(208), dp(117)));
         String source = !e.backdrop.isEmpty() ? e.backdrop : e.poster;
-        if (!source.isEmpty()) feed.loadArt(source, dp(208) * 2, art::setImageBitmap);
+        // A watchlist title's cached picture may have been cleared since: its TMDB picture is fetched again.
+        if (!source.isEmpty()) feed.loadArt(source, dp(208) * 2, b -> {
+            if (b != null) art.setImageBitmap(b);
+            else if (!e.artSource.isEmpty()) feed.art(e, dp(208) * 2, art::setImageBitmap);
+        });
         else if (!e.artSource.isEmpty()) feed.art(e, dp(208) * 2, art::setImageBitmap);
         LinearLayout head = column();
         LinearLayout.LayoutParams hlp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
@@ -1656,21 +1696,79 @@ final class FeedHome {
         });
         // A search result on none of this TV's apps has nothing to open.
         if (!e.intent.isEmpty()) buttons.addView(watch, wrap());
+        // The details as they arrive: the TMDB picture is what a watchlist card keeps.
+        @SuppressWarnings("unchecked") Map<String, String>[] got = new Map[1];
+        TextView keep = detailsButton("");
+        styleWatchlistButton(keep, watchlist.contains(e));
+        keep.setOnClickListener(v -> {
+            boolean had = watchlist.contains(e);
+            if (had) watchlist.remove(e);
+            else watchlist.add(e, got[0] == null ? "" : got[0].getOrDefault("backdrop", ""), shownRating(e, got[0]));
+            styleWatchlistButton(keep, !had);
+            Toast.makeText(act, had ? R.string.watchlist_removed : R.string.watchlist_added, Toast.LENGTH_SHORT).show();
+        });
+        LinearLayout.LayoutParams klp = wrap();
+        klp.leftMargin = buttons.getChildCount() == 0 ? 0 : dp(10);
+        if (!Feed.YOUTUBE.equals(e.pkg)) buttons.addView(keep, klp);
+        TextView refresh = detailsButton(act.getString(R.string.feed_refresh_rating));
+        LinearLayout.LayoutParams rlp2 = wrap();
+        rlp2.leftMargin = buttons.getChildCount() == 0 ? 0 : dp(10);
+        boolean video = Feed.YOUTUBE.equals(e.pkg);
+        if (!video) buttons.addView(refresh, rlp2);
         TextView close = detailsButton(act.getString(R.string.feed_close));
         close.setOnClickListener(v -> dialog.dismiss());
         LinearLayout.LayoutParams clp = wrap();
-        clp.leftMargin = e.intent.isEmpty() ? 0 : dp(10);
+        clp.leftMargin = buttons.getChildCount() == 0 ? 0 : dp(10);
         buttons.addView(close, clp);
 
         dialog.setContentView(box, new ViewGroup.LayoutParams(dp(760), ViewGroup.LayoutParams.WRAP_CONTENT));
         if (dialog.getWindow() != null) dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        if (afterClose != null) dialog.setOnDismissListener(x -> afterClose.run());
         dialog.show();
-        (e.intent.isEmpty() ? close : watch).requestFocus();
+        (e.intent.isEmpty() ? (keep.getParent() != null ? keep : close) : watch).requestFocus();
 
-        if (e.tmdb.isEmpty()) return;   // a YouTube video: its description is all there is
-        feed.details(e.tmdb, e.rating.isEmpty() ? e.title : null, e.year, d -> {
+        if (video) return;   // a YouTube video: its description is all there is
+        // A title an app published has no TMDB id: its rating and count are asked for by name instead.
+        java.util.function.BiConsumer<Boolean, java.util.function.Consumer<Map<String, String>>> ask = (fresh, then) -> {
+            if (e.tmdb.isEmpty()) feed.rating(e.title, e.year, fresh, then);
+            else feed.details(e.tmdb, e.title, e.year, fresh, then);
+        };
+        refresh.setOnClickListener(v -> {
+            refresh.setText(R.string.feed_refreshing_rating);
+            String before = shownRating(e, got[0]);
+            ask.accept(true, d -> {
+                refresh.setText(R.string.feed_refresh_rating);
+                if (d == null || d.containsKey("error")) return;
+                got[0] = d;
+                showRating(tagBox, meta, e, d);
+                String now = shownRating(e, d);
+                // Home's rows hear it from the add-on; the watchlist keeps its own copy.
+                watchlist.rerate(e, now);
+                if (afterClose != null && !now.equals(before)) dialog.setOnDismissListener(x -> afterClose.run());
+                Toast.makeText(act, now.isEmpty() ? R.string.feed_rating_none : now.equals(before) ? R.string.feed_rating_same
+                        : R.string.feed_rating_updated, Toast.LENGTH_SHORT).show();
+            });
+        });
+        if (e.tmdb.isEmpty()) {
+            ask.accept(false, d -> {
+                if (d == null) return;
+                watchlist.rerate(e, shownRating(e, d));
+                got[0] = d;
+                showRating(tagBox, meta, e, d);
+            });
+            return;
+        }
+        feed.details(e.tmdb, e.title, e.year, false, d -> {
             facts.removeAllViews();
+            if (d != null && !d.containsKey("error")) watchlist.rerate(e, shownRating(e, d));
             if (d == null || d.containsKey("error")) {
+                // No details from TMDB: the rating and its count can still be had by the title's name.
+                feed.rating(e.title, e.year, false, rd -> {
+                    if (rd == null || got[0] != null) return;
+                    watchlist.rerate(e, shownRating(e, rd));
+                    got[0] = rd;
+                    showRating(tagBox, meta, e, rd);
+                });
                 TextView none = text(13, 0x80FFFFFF, regular);
                 String error = d == null ? "" : d.get("error");
                 none.setText("tmdb_missing".equals(error) ? R.string.feed_needs_tmdb
@@ -1678,13 +1776,8 @@ final class FeedHome {
                 facts.addView(none, wrap());
                 return;
             }
-            meta.setText(detailsMeta(e, d));
-            String imdb = d.getOrDefault("imdb_rating", "");
-            if (e.rating.isEmpty() && !imdb.isEmpty()) {
-                imdbTag(tagBox, imdb, true);
-                ((LinearLayout.LayoutParams) meta.getLayoutParams()).leftMargin = dp(10);
-                meta.requestLayout();
-            }
+            got[0] = d;
+            showRating(tagBox, meta, e, d);
             String tag = d.getOrDefault("tagline", "");
             tagline.setText(tag);
             tagline.setVisibility(tag.isEmpty() ? View.GONE : View.VISIBLE);
@@ -1702,6 +1795,265 @@ final class FeedHome {
             fact(facts, R.string.feed_released, longDate(d.get("released")));
             fact(facts, R.string.feed_status, d.get("status"));
         });
+    }
+
+    // ---- watchlist ----------------------------------------------------------------------------------------
+
+    /**
+     * Add to or remove from the watchlist straight from a card. Adding asks the add-on for the title's TMDB picture
+     * first, so the watchlist card keeps a picture after the add-on clears its cache; without one, the card's own.
+     */
+    private void toggleWatchlist(Feed.Entry e) {
+        if (watchlist.contains(e)) {
+            watchlist.remove(e);
+            Toast.makeText(act, R.string.watchlist_removed, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (e.tmdb.isEmpty()) {
+            watchlist.add(e, "", e.rating);
+            Toast.makeText(act, R.string.watchlist_added, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        feed.details(e.tmdb, e.title, e.year, false, d -> {
+            boolean got = d != null && !d.containsKey("error");
+            watchlist.add(e, got ? d.getOrDefault("backdrop", "") : "", got ? shownRating(e, d) : e.rating);
+            Toast.makeText(act, R.string.watchlist_added, Toast.LENGTH_SHORT).show();
+        });
+    }
+
+    /**
+     * The watchlist: Movies and TV series tabs, each the latest added first, on the same cards as Top 10. OK watches;
+     * holding OK offers Remove from watchlist and Read more.
+     */
+    void openWatchlist() {
+        Dialog dialog = new Dialog(act, android.R.style.Theme_Black_NoTitleBar_Fullscreen);
+        LinearLayout page = column();
+        page.setClipChildren(false);
+        page.setClipToPadding(false);
+        page.setPadding(dp(48), dp(36), dp(48), 0);
+        page.setBackgroundColor(0xFF0B0D12);
+        TextView title = text(30, Color.WHITE, light);
+        title.setText(R.string.watchlist);
+        page.addView(title, wrap());
+        LinearLayout tabs = row();
+        LinearLayout.LayoutParams tlp = wrap();
+        tlp.topMargin = dp(18);
+        page.addView(tabs, tlp);
+        TextView empty = text(15, 0xB3FFFFFF, regular);
+        empty.setText(R.string.watchlist_empty);
+        empty.setVisibility(View.GONE);
+        LinearLayout.LayoutParams elp = wrap();
+        elp.topMargin = dp(24);
+        elp.leftMargin = dp(4);
+        page.addView(empty, elp);
+        RecyclerView grid = new RecyclerView(act);
+        int columns = Math.max(1, (act.getResources().getDisplayMetrics().widthPixels - dp(96)) / dp(TILE_W + 18));
+        grid.setLayoutManager(new GridLayoutManager(act, columns));
+        grid.setClipChildren(false);
+        grid.setClipToPadding(false);
+        grid.setPadding(dp(4), dp(18), dp(4), dp(40));
+        grid.setOverScrollMode(View.OVER_SCROLL_NEVER);
+        grid.setItemAnimator(null);
+        // Exactly as wide as its columns, so the cards sit as close together as in Top 10.
+        page.addView(grid, new LinearLayout.LayoutParams(columns * dp(TILE_W + 18) + dp(8), 0, 1f));
+
+        boolean[] series = {false};
+        TextView[] pills = new TextView[2];
+        Runnable[] show = new Runnable[1];
+        show[0] = () -> {
+            for (int i = 0; i < 2; i++) {
+                boolean on = (i == 1) == series[0];
+                int n = watchlist.list(i == 1).size();
+                pills[i].setText(act.getString(i == 0 ? R.string.watchlist_movies : R.string.watchlist_series) + (n > 0 ? "  " + n : ""));
+                styleGenre(pills[i], on);
+            }
+            List<Feed.Entry> list = watchlist.list(series[0]);
+            empty.setVisibility(list.isEmpty() ? View.VISIBLE : View.GONE);
+            grid.setAdapter(new WatchCards(list, columns, pills[series[0] ? 1 : 0], show[0]));
+        };
+        for (int i = 0; i < 2; i++) {
+            TextView pill = text(15, Color.WHITE, medium);
+            pill.setFocusable(true);
+            pill.setPadding(dp(18), dp(9), dp(18), dp(9));
+            pill.setForeground(ring(dp(20)));
+            final boolean mine = i == 1;
+            pill.setOnFocusChangeListener((v, has) -> {
+                lift(v, has, 1.06f);
+                if (has && series[0] != mine) {
+                    series[0] = mine;
+                    show[0].run();
+                }
+            });
+            pill.setOnKeyListener((v, key, e) -> {
+                if (e.getAction() != KeyEvent.ACTION_DOWN || key != KeyEvent.KEYCODE_DPAD_DOWN) return false;
+                RecyclerView.ViewHolder first = grid.findViewHolderForAdapterPosition(0);
+                if (first != null) first.itemView.requestFocus();
+                return true;
+            });
+            LinearLayout.LayoutParams lp = wrap();
+            if (i > 0) lp.leftMargin = dp(10);
+            tabs.addView(pill, lp);
+            pills[i] = pill;
+        }
+        show[0].run();
+        dialog.setContentView(page);
+        if (dialog.getWindow() != null) dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        dialog.show();
+        pills[0].requestFocus();
+    }
+
+    /** The watchlist's cards: Top 10's cards, without the rank. */
+    private final class WatchCards extends RecyclerView.Adapter<WatchCards.Holder> {
+        private final List<Feed.Entry> list;
+        private final int columns;
+        /** The tab these cards belong to: Up from the first row goes there, and it holds the focus while the grid redraws. */
+        private final TextView tab;
+        private final Runnable redraw;
+
+        WatchCards(List<Feed.Entry> list, int columns, TextView tab, Runnable redraw) {
+            this.list = list;
+            this.columns = columns;
+            this.tab = tab;
+            this.redraw = redraw;
+        }
+
+        final class Holder extends RecyclerView.ViewHolder {
+            final ImageView art = new ImageView(act);
+            final View shade = new View(act);
+            final TextView title = text(15, Color.WHITE, medium);
+            final LinearLayout tag = row();
+            final ImageView badge = new ImageView(act);
+            /** Under the card, always: its genres and year. */
+            final TextView about = caption();
+
+            Holder(LinearLayout cell) {
+                super(cell);
+            }
+        }
+
+        @NonNull
+        @Override
+        public Holder onCreateViewHolder(@NonNull ViewGroup parent, int type) {
+            // The card, then its genres and year under it, as the genre row shows the selected card's.
+            LinearLayout cell = column();
+            cell.setClipChildren(false);
+            RecyclerView.LayoutParams clp = new RecyclerView.LayoutParams(dp(TILE_W), ViewGroup.LayoutParams.WRAP_CONTENT);
+            clp.setMargins(0, 0, dp(18), dp(22));
+            cell.setLayoutParams(clp);
+            FrameLayout card = new FrameLayout(act);
+            cell.addView(card, new LinearLayout.LayoutParams(dp(TILE_W), dp(TILE_H)));
+            card.setBackground(rounded(0xFF1C2130, dp(14)));
+            card.setForeground(ring(dp(14)));
+            card.setClipToOutline(true);
+            card.setFocusable(true);
+            Holder h = new Holder(cell);
+            LinearLayout.LayoutParams alp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            alp.topMargin = dp(8);
+            alp.leftMargin = dp(4);
+            cell.addView(h.about, alp);
+            h.art.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            card.addView(h.art, match());
+            h.shade.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+                    new int[] {0x00000000, 0x00000000, 0xE6000000}));
+            card.addView(h.shade, match());
+            h.title.setMaxLines(2);
+            h.title.setEllipsize(TextUtils.TruncateAt.END);
+            h.title.setShadowLayer(dp(4), 0, dp(1), 0x99000000);
+            h.title.setPadding(dp(12), 0, dp(12), dp(12));
+            card.addView(h.title, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM));
+            FrameLayout.LayoutParams gl = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.END);
+            gl.topMargin = dp(8);
+            gl.rightMargin = dp(8);
+            card.addView(h.tag, gl);
+            h.badge.setClipToOutline(true);
+            h.badge.setBackground(rounded(0x00000000, dp(4)));
+            FrameLayout.LayoutParams bl = new FrameLayout.LayoutParams(dp(20), dp(20), Gravity.BOTTOM | Gravity.END);
+            bl.rightMargin = dp(10);
+            bl.bottomMargin = dp(12);
+            card.addView(h.badge, bl);
+            card.setOnFocusChangeListener((v, has) -> lift(v, has, 1.08f));
+            card.setOnClickListener(v -> {
+                int pos = h.getBindingAdapterPosition();
+                if (pos != RecyclerView.NO_POSITION) watch(list.get(pos));
+            });
+            card.setOnLongClickListener(v -> {
+                int pos = h.getBindingAdapterPosition();
+                if (pos == RecyclerView.NO_POSITION) return true;
+                Feed.Entry e = list.get(pos);
+                menu(v, e.title, new String[] {act.getString(R.string.watchlist_remove), "Read more"}, new Runnable[] {
+                        () -> {
+                            RecyclerView grid = (RecyclerView) cell.getParent();
+                            watchlist.remove(e);
+                            Toast.makeText(act, R.string.watchlist_removed, Toast.LENGTH_SHORT).show();
+                            // The focus waits on this tab while the grid redraws, so no other tab takes it meanwhile.
+                            tab.requestFocus();
+                            redraw.run();
+                            focusAfterRemoval(grid, pos);
+                        },
+                        () -> showDetails(e, () -> {
+                            if (!watchlist.contains(e)) redraw.run();
+                        })});
+                return true;
+            });
+            card.setOnKeyListener((v, key, e) -> {
+                if (e.getAction() != KeyEvent.ACTION_DOWN || key != KeyEvent.KEYCODE_DPAD_UP) return false;
+                int pos = h.getBindingAdapterPosition();
+                if (pos >= 0 && pos < columns) {
+                    tab.requestFocus();
+                    return true;
+                }
+                return false;
+            });
+            return h;
+        }
+
+        /** After a removal the grid is redrawn: the card now in that place, or the one before, takes the focus. */
+        private void focusAfterRemoval(RecyclerView grid, int pos) {
+            if (grid == null) return;
+            grid.post(() -> {
+                RecyclerView.Adapter<?> a = grid.getAdapter();
+                int n = a == null ? 0 : a.getItemCount();
+                if (n == 0) return;   // the tab keeps the focus
+                RecyclerView.ViewHolder next = grid.findViewHolderForAdapterPosition(Math.min(pos, n - 1));
+                if (next != null) next.itemView.requestFocus();
+            });
+        }
+
+        @Override
+        public void onBindViewHolder(@NonNull Holder h, int position) {
+            Feed.Entry e = list.get(position);
+            h.itemView.setContentDescription(e.title);
+            h.title.setText(e.title);
+            List<String> about = new ArrayList<>();
+            String genres = genreNames(e.genre);
+            if (!genres.isEmpty()) about.add(genres);
+            if (!e.year.isEmpty()) about.add(e.year);
+            h.about.setText(TextUtils.join("  ·  ", about));
+            h.title.setVisibility(View.VISIBLE);
+            h.art.setImageDrawable(null);
+            h.tag.removeAllViews();
+            if (!e.rating.isEmpty()) imdbTag(h.tag, e.rating, true);
+            App a = apps.get(e.pkg);
+            h.badge.setImageDrawable(a == null ? null : a.icon);
+            h.badge.setVisibility(a != null ? View.VISIBLE : View.GONE);
+            String want = Watchlist.key(e);
+            h.art.setTag(want);
+            java.util.function.Consumer<Bitmap> shown = b -> {
+                if (b == null || !want.equals(h.art.getTag())) return;
+                h.art.setImageBitmap(b);
+                // Apps' posters carry their own title; TMDB pictures do not.
+                if (!e.plainArt()) h.title.setVisibility(View.GONE);
+            };
+            if (!e.artSource.isEmpty()) feed.art(e, dp(TILE_W), shown);
+            else feed.loadArt(!e.poster.isEmpty() ? e.poster : e.backdrop, dp(TILE_W), shown);
+        }
+
+        @Override
+        public int getItemCount() {
+            return list.size();
+        }
     }
 
     // ---- search -------------------------------------------------------------------------------------------
@@ -2039,6 +2391,20 @@ final class FeedHome {
         into.addView(line, lp);
     }
 
+    /** The watchlist button: green "+ Add to watchlist", or red "− Remove from watchlist" once the title is on it. */
+    private void styleWatchlistButton(TextView b, boolean kept) {
+        b.setText(act.getString(kept ? R.string.watchlist_remove : R.string.watchlist_add));
+        int colour = kept ? 0xFFEF4444 : 0xFF22C55E, soft = kept ? 0xFFFCA5A5 : 0xFF86EFAC;
+        View.OnFocusChangeListener paint = (v, has) -> {
+            GradientDrawable bg = rounded(has ? colour : (colour & 0x00FFFFFF) | 0x33000000, dp(18));
+            if (!has) bg.setStroke(Math.max(1, dp(1)), colour);
+            v.setBackground(bg);
+            ((TextView) v).setTextColor(has ? Color.WHITE : soft);
+        };
+        b.setOnFocusChangeListener(paint);
+        paint.onFocusChange(b, b.hasFocus());
+    }
+
     /** A pill like the header's: white with dark text when focused, glass otherwise. */
     private TextView detailsButton(String label) {
         TextView b = text(14, Color.WHITE, medium);
@@ -2110,6 +2476,10 @@ final class FeedHome {
     }
 
     private void launch(String pkg) {
+        if (Watchlist.PKG.equals(pkg)) {
+            openWatchlist();
+            return;
+        }
         Intent i = pm.getLeanbackLaunchIntentForPackage(pkg);
         if (i == null) i = pm.getLaunchIntentForPackage(pkg);
         if (i == null) return;
@@ -2121,6 +2491,7 @@ final class FeedHome {
     }
 
     private void appInfo(String pkg) {
+        if (Watchlist.PKG.equals(pkg)) return;   // not an installed app
         try {
             act.startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", pkg, null))
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));

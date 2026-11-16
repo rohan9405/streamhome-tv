@@ -74,6 +74,34 @@ final class Store {
         }
     }
 
+    /**
+     * A rating Read more just asked IMDb for again: every tile of that title takes it, and Home redraws at once rather
+     * than at the next refresh. Nothing is written when no tile changes.
+     */
+    static synchronized void rerate(Context ctx, String tmdb, String title, String year, String rating) {
+        Snapshot s = get(ctx);
+        List<Item> items = new ArrayList<>(s.items);
+        if (rerate(items, tmdb, title, year, rating) == 0) return;
+        put(ctx, new Snapshot(s.refreshedMs, s.error, items, s.probe));
+        ctx.getContentResolver().notifyChange(FeedProvider.itemsUri(), null);
+    }
+
+    /** Sets the rating on the tiles of this title (its TMDB id, else its name and year); how many changed. */
+    static int rerate(List<Item> items, String tmdb, String title, String year, String rating) {
+        if (rating == null || rating.isEmpty()) return 0;
+        int changed = 0;
+        for (Item i : items) {
+            boolean same = tmdb != null && !tmdb.isEmpty() && tmdb.equals(i.tmdb)
+                    || title != null && i.title.equalsIgnoreCase(title)
+                    && (year == null || year.isEmpty() || i.year.isEmpty() || i.year.equals(year));
+            if (same && !rating.equals(i.rating)) {
+                i.rating = rating;
+                changed++;
+            }
+        }
+        return changed;
+    }
+
     private static File file(Context ctx) {
         return new File(ctx.getFilesDir(), "feed.json");
     }

@@ -21,11 +21,12 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * JustWatch (justwatch.com), the header's fallback when TMDB cannot be reached or has no token: what each service
- * added in India day by day, so a title that reached the app weeks after its premiere counts too. This is
- * the GraphQL API behind JustWatch's own website, not a published one, so it can change without notice: anything
- * other than a clean answer makes {@link #newOn} return null and the caller uses TMDB instead. Answers are kept on
- * disk: an hour for today, three hours for yesterday (JustWatch fills a day in as it goes), a week for older days.
+ * JustWatch (justwatch.com): what each service added in India day by day, so a title that reached the app weeks after
+ * its premiere counts too, and services TMDB knows little about (JioHotstar) still fill the header. TMDB's new
+ * releases are added to it at every refresh. This is the GraphQL API behind JustWatch's own website, not a published
+ * one, so it can change without notice: anything other than a clean answer makes {@link #newOn} return null and the
+ * header has TMDB's alone. Today and yesterday (which JustWatch fills in as it goes) are asked for at most twice a day,
+ * at the first refresh after 9 am and after 9 pm on the TV's clock; older days, which no longer change, are kept a week.
  */
 final class JustWatch {
     private static final String API = "https://apis.justwatch.com/graphql";
@@ -68,7 +69,8 @@ final class JustWatch {
         Set<String> seen = new HashSet<>();
         for (int d = 0; d <= days; d++) {
             LocalDate day = today.minusDays(d);
-            long maxAge = d == 0 ? HOUR_MS : d == 1 ? 3 * HOUR_MS : 7 * 24 * HOUR_MS;
+            // Today and yesterday: kept since the last 9 am or 9 pm; older days: a week.
+            long maxAge = d <= 1 ? System.currentTimeMillis() - slotStart(java.time.ZonedDateTime.now()) : 7 * 24 * HOUR_MS;
             JSONObject page = get(pkg, day, maxAge);
             if (page == null) return null;
             JSONArray edges = page.optJSONObject("data") == null ? null
@@ -85,6 +87,13 @@ final class JustWatch {
             }
         }
         return out;
+    }
+
+    /** When the current twice-a-day turn began: today's 9 pm or 9 am if past, else yesterday's 9 pm (epoch ms). */
+    static long slotStart(java.time.ZonedDateTime now) {
+        java.time.ZonedDateTime nine = now.toLocalDate().atTime(9, 0).atZone(now.getZone()), twentyOne = nine.plusHours(12);
+        java.time.ZonedDateTime start = !now.isBefore(twentyOne) ? twentyOne : !now.isBefore(nine) ? nine : twentyOne.minusDays(1);
+        return start.toInstant().toEpochMilli();
     }
 
     /**
@@ -254,6 +263,14 @@ final class JustWatch {
                 return o;
             } catch (Exception e) {
                 // Reset or timeout: once more.
+            }
+        }
+        // Not answered now: the last answer kept for that day, however old, rather than nothing.
+        if (f.length() > 0) {
+            try (InputStream in = new FileInputStream(f)) {
+                return new JSONObject(new String(Net.read(in, 1 << 21), StandardCharsets.UTF_8));
+            } catch (Exception ignored) {
+                // Nothing usable.
             }
         }
         return null;

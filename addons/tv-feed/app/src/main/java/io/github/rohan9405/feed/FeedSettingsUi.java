@@ -45,7 +45,7 @@ final class FeedSettingsUi {
         label.setLetterSpacing(0.18f);
         label.setPadding(0, dp(9), 0, dp(30));
         rail.addView(label);
-        String[] names = {"Finance chip", "Cricket", "Header", "Connections", "Phone page", "Diagnostics"};
+        String[] names = {"Finance chip", "Cricket", "Header", "Top bar", "Connections", "Phone page", "Diagnostics"};
         for (int i = 0; i < names.length; i++) {
             int at = i;
             TextView item = text(names[i], 15, Color.WHITE, regular);
@@ -122,7 +122,7 @@ final class FeedSettingsUi {
     void update(Store.Snapshot snapshot) {
         refreshButton.setText("Refresh feed");
         updated.setText(snapshot.refreshedMs == 0 ? "Feed has not refreshed yet" : "Updated " + DateUtils.getRelativeTimeSpanString(snapshot.refreshedMs));
-        if (selected == 3) connections();
+        if (selected == 4) connections();
     }
 
     private void select(int at) {
@@ -132,8 +132,9 @@ final class FeedSettingsUi {
         if (at == 0) finance();
         else if (at == 1) cricket();
         else if (at == 2) header();
-        else if (at == 3) connections();
-        else if (at == 4) phone();
+        else if (at == 3) topBar();
+        else if (at == 4) connections();
+        else if (at == 5) phone();
         else {
             heading.setText("Diagnostics");
             subtitle.setText("Source and refresh details for troubleshooting.");
@@ -248,6 +249,43 @@ final class FeedSettingsUi {
         addCard(controls, "Title logos", "On: the title's own logo where TMDB has one. Off: the title written as text", () -> FeedProvider.logosOn(act) ? "On" : "Off", () -> {
             FeedProvider.setLogos(act, !FeedProvider.logosOn(act));
         }, 70, false);
+        TextView group = text("LANGUAGES", 10, 0xFF8D9BB1, medium);
+        group.setLetterSpacing(0.15f);
+        group.setPadding(dp(2), dp(19), 0, dp(4));
+        page.addView(group);
+        TextView explain = text("New titles in the header only in these languages. None chosen: every language.", 11, 0xFF8998AF, regular);
+        explain.setPadding(dp(2), 0, 0, dp(10));
+        page.addView(explain);
+        for (int i = 0; i < Languages.NAMES.length; i += 2) {
+            LinearLayout pair = row();
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            lp.bottomMargin = dp(10);
+            page.addView(pair, lp);
+            for (int j = i; j < Math.min(i + 2, Languages.NAMES.length); j++) {
+                String code = Languages.NAMES[j][0];
+                addCard(pair, Languages.NAMES[j][1], "New titles in the header", () -> Languages.chosen(act).contains(code) ? "On" : "Off",
+                        () -> Languages.toggle(act, code), 58, j > i);
+            }
+        }
+    }
+
+    private void topBar() {
+        heading.setText("Top bar");
+        subtitle.setText("Shortcuts at the top of Home. Hold OK on one there to remove it; turn it back on here.");
+        for (int i = 0; i < TopBar.NAMES.length; i += 2) {
+            LinearLayout pair = row();
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            lp.bottomMargin = dp(10);
+            page.addView(pair, lp);
+            for (int j = i; j < Math.min(i + 2, TopBar.NAMES.length); j++) {
+                String key = TopBar.NAMES[j][0];
+                addCard(pair, TopBar.NAMES[j][1], TopBar.NAMES[j][2], () -> TopBar.shown(act, key) ? "On" : "Off",
+                        () -> TopBar.set(act, key, !TopBar.shown(act, key)), 58, j > i);
+            }
+        }
+        TextView note = text("Settings always stays: holding OK on it opens Launcher settings.", 11, 0xFF74839B, regular);
+        note.setPadding(dp(2), dp(3), 0, 0);
+        page.addView(note);
     }
 
     private void phone() {
@@ -278,9 +316,9 @@ final class FeedSettingsUi {
         Runnable paint = () -> {
             String state = value.get();
             badge.setText(state);
-            boolean off = "Off".equals(state);
-            badge.setTextColor(off ? 0xFF8D9AB1 : 0xFFA5F3CC);
-            badge.setBackground(shape(off ? 0xFF242D3D : 0xFF203C34, 10, Color.TRANSPARENT));
+            boolean off = "Off".equals(state), setUp = "Set up".equals(state);
+            badge.setTextColor(setUp ? 0xFFFFA4A4 : off ? 0xFF8D9AB1 : 0xFFA5F3CC);
+            badge.setBackground(shape(setUp ? 0xFF432329 : off ? 0xFF242D3D : 0xFF203C34, 10, Color.TRANSPARENT));
             card.setContentDescription(title + ": " + state);
         };
         paint.run();
@@ -306,15 +344,20 @@ final class FeedSettingsUi {
                 () -> info("IMDb ratings", "Add or renew your OMDb key from your computer with my-tv/api-keys.sh, then send it to the TV."));
         Indmoney im = new Indmoney(act);
         connection("Portfolio & markets", "INDmoney · Read-only finance connection", im.paired() && !im.reconnectNeeded(),
-                () -> info("Portfolio & markets", "Sign in from your computer with my-tv/indmoney-signin.py, then pair with my-tv/indmoney-pair.sh. Your existing connection stays in place."));
+                () -> act.startActivity(new android.content.Intent(act, IndmoneySignInActivity.class)), true);
     }
 
     private void connection(String title, String description, boolean ready, Runnable fix) {
+        connection(title, description, ready, fix, false);
+    }
+
+    /** {@code fixWhenReady}: the card opens its fix even when connected (INDmoney: to sign in again). */
+    private void connection(String title, String description, boolean ready, Runnable fix, boolean fixWhenReady) {
         LinearLayout pair = row();
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         lp.bottomMargin = dp(12);page.addView(pair, lp);
         addCard(pair, title, description, () -> ready ? "Ready" : "Set up", () -> {
-            if (ready) info(title, description + "\n\nConnected and ready to use."); else fix.run();
+            if (ready && !fixWhenReady) info(title, description + "\n\nConnected and ready to use."); else fix.run();
         }, 70, false);
     }
     private void info(String title, String message) {

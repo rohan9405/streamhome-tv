@@ -45,6 +45,13 @@
             android:excludeFromRecents="true"
             android:screenOrientation="landscape" />
 
+        <!-- INDmoney's own sign-in page on the TV, typed with the remote or from a phone. -->
+        <activity
+            android:name=".IndmoneySignInActivity"
+            android:exported="false"
+            android:screenOrientation="landscape"
+            android:windowSoftInputMode="adjustPan" />
+
         <activity
             android:name=".FeedActivity"
             android:exported="true"

@@ -128,12 +128,17 @@ final class Omdb {
      * returned when the lookup cannot be made (no network, budget spent), so a tile keeps what it had.
      */
     Entry lookup(String title, String year) {
+        return lookup(title, year, false);
+    }
+
+    /** {@code fresh}: asks OMDb again even when the kept answer is still fresh (Read more's Refresh rating). */
+    Entry lookup(String title, String year, boolean fresh) {
         String clean = Pick.cleanTitle(title);
         if (apiKey.isEmpty() || clean.isEmpty()) return null;
         String cacheKey = "r:" + clean.toLowerCase(Locale.ROOT) + "|" + year;
         Entry cached = Entry.parse(prefs.getString(cacheKey, null));
         long now = System.currentTimeMillis();
-        if (cached != null && cached.fresh(now)) return cached;
+        if (cached != null && cached.fresh(now) && !fresh) return cached;
         if (budget <= 0) return cached;
         budget--;
         Entry fetched = fetch(clean, year, now);

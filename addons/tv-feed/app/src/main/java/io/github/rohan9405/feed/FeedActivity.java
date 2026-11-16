@@ -72,8 +72,8 @@ public final class FeedActivity extends Activity {
                 : "token set").append('\n');
         Indmoney im = new Indmoney(this);
         b.append("Insight chip (INDmoney): ").append(!im.paired()
-                ? "not connected, so the chip stays hidden (optional: my-tv/indmoney-signin.py, then my-tv/indmoney-pair.sh)"
-                : im.reconnectNeeded() ? "INDmoney asked to sign in again: my-tv/indmoney-signin.py, then my-tv/indmoney-pair.sh"
+                ? "not connected, so the chip stays hidden (optional: Connections, Portfolio & markets)"
+                : im.reconnectNeeded() ? "INDmoney asked to sign in again: Connections, Portfolio & markets"
                 : "connected").append('\n');
         b.append("Last refresh: ").append(s.refreshedMs == 0 ? "never"
                 : DateUtils.getRelativeTimeSpanString(s.refreshedMs)).append('\n');

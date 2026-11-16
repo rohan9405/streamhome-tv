@@ -37,17 +37,20 @@ public final class FeedProvider extends ContentProvider {
 
     /** Read more: one title's cast, crew and facts from TMDB, asked for when Home opens the popup. */
     static final String[] DETAILS = {"overview", "tagline", "released", "runtime", "episode_runtime", "seasons", "episodes",
-            "certification", "cast", "directors", "creators", "language", "status", "imdb_rating"};
+            "certification", "cast", "directors", "creators", "language", "status", "imdb_rating", "imdb_votes", "backdrop"};
 
     /** A row of {@link #DETAILS} for "movie:123" or "tv:456", fetched now (kept a week); null when TMDB has nothing. */
-    private Cursor details(String tmdb, String title, String year) {
+    private Cursor details(String tmdb, String title, String year, boolean fresh) {
         Cursor missing = tmdbMissing();
         if (missing != null) return missing;
         Tmdb.Details d = tmdb == null ? null : new Tmdb(getContext()).details(tmdb);
         if (d == null) return null;
+        String[] r = rating(tmdb, title, year, fresh);
+        // Read more's rating is IMDb's own, often newer than the one Home had: Home's tiles of this title take it too.
+        Store.rerate(getContext(), tmdb, title, year, r[0]);
         MatrixCursor c = new MatrixCursor(DETAILS);
         c.addRow(new Object[] {d.overview, d.tagline, d.released, d.runtime, d.episodeRuntime, d.seasons, d.episodes,
-                d.certification, d.cast, d.directors, d.creators, d.language, d.status, rating(tmdb, title, year)});
+                d.certification, d.cast, d.directors, d.creators, d.language, d.status, r[0], r[1], d.backdrop});
         return c;
     }
 
@@ -60,17 +63,21 @@ public final class FeedProvider extends ContentProvider {
     }
 
     /**
-     * IMDb's rating for a title Home has none for (one from search): OMDb, then IMDb itself for a new title OMDb has not
-     * rated. Only asked when Home sends the title, so a title that already has its rating spends nothing.
+     * IMDb's rating and how many rated it, {"7.4", "123456"} ("" where unknown), for Read more: IMDb itself by the title's
+     * IMDb id (from TMDB, else OMDb), then OMDb's rating when IMDb has none. {@code fresh} asks both again.
      */
-    private String rating(String tmdb, String title, String year) {
-        if (title == null || title.isEmpty()) return "";
-        Omdb.Entry e = new Omdb(getContext(), 1).lookup(title, year == null ? "" : year);
-        if (e != null && !e.rating.isEmpty()) return e.rating;
-        String id = e != null && !e.imdbId.isEmpty() ? e.imdbId : new Tmdb(getContext()).imdbId(tmdb);
-        if (id.isEmpty()) return "";
-        String r = new Imdb(getContext()).ratings(java.util.Collections.singletonList(id)).get(id);
-        return r == null ? "" : r;
+    private String[] rating(String tmdb, String title, String year, boolean fresh) {
+        String id = new Tmdb(getContext()).imdbId(tmdb);
+        Omdb.Entry omdb = null;
+        boolean named = title != null && !title.isEmpty();
+        if (id.isEmpty() && named) {
+            omdb = new Omdb(getContext(), 1).lookup(title, year == null ? "" : year, fresh);
+            if (omdb != null) id = omdb.imdbId;
+        }
+        String[] imdb = id.isEmpty() ? null : new Imdb(getContext()).summary(id, fresh);
+        if (imdb != null && !imdb[0].isEmpty()) return imdb;
+        if (omdb == null && named) omdb = new Omdb(getContext(), 1).lookup(title, year == null ? "" : year, fresh);
+        return new String[] {omdb == null ? "" : omdb.rating, imdb == null ? "" : imdb[1]};
     }
 
     /** Search: one row per title, or an "error" row like Read more's; null when TMDB did not answer. */
@@ -137,9 +144,21 @@ public final class FeedProvider extends ContentProvider {
             return c;
         }
         if ("details".equals(uri.getLastPathSegment())) {
-            return details(uri.getQueryParameter("tmdb"), uri.getQueryParameter("title"), uri.getQueryParameter("year"));
+            return details(uri.getQueryParameter("tmdb"), uri.getQueryParameter("title"), uri.getQueryParameter("year"),
+                    "1".equals(uri.getQueryParameter("fresh")));
         }
         if ("search".equals(uri.getLastPathSegment())) return search(uri.getQueryParameter("q"));
+        if ("rating".equals(uri.getLastPathSegment())) {
+            // Read more for a title an app published, which has no TMDB id: IMDb's rating and count by its name.
+            String title = uri.getQueryParameter("title"), year = uri.getQueryParameter("year");
+            boolean fresh = "1".equals(uri.getQueryParameter("fresh"));
+            if (title == null || title.isEmpty()) return null;
+            String[] r = rating("", title, year, fresh);
+            Store.rerate(getContext(), "", title, year, r[0]);
+            MatrixCursor c = new MatrixCursor(new String[] {"imdb_rating", "imdb_votes"});
+            c.addRow(new Object[] {r[0], r[1]});
+            return c;
+        }
         if ("phone_words".equals(uri.getLastPathSegment())) {
             // Taken once: the words a phone sent to Home's search.
             MatrixCursor c = new MatrixCursor(new String[] {"words"});
@@ -208,6 +227,14 @@ public final class FeedProvider extends ContentProvider {
         String self = getContext().getPackageName();
         return caller.equals(self)
                 || getContext().getPackageManager().checkSignatures(self, caller) == PackageManager.SIGNATURE_MATCH;
+    }
+
+    /** Home took a shortcut off its top bar ("topbar_hide", "btnWifi"); the Feed screen's Top bar puts it back. */
+    @Override
+    public android.os.Bundle call(String method, String arg, android.os.Bundle extras) {
+        if (!allowed() || !"topbar_hide".equals(method) || arg == null) return null;
+        TopBar.set(getContext(), arg, false);
+        return android.os.Bundle.EMPTY;
     }
 
     @Override

@@ -93,7 +93,7 @@ final class InsightRotation {
 
     private static String className(String key, String fallback) {
         switch (key) {
-            case "mf": return "Mutual Funds";
+            case "mf": return "MF";   // short on the chip; the details popup says Mutual funds
             case "in": return "Equity";
             case "us": return "US Stocks";
             default: return fallback;

@@ -87,7 +87,8 @@ final class Insights {
             for (String key : VIEWS) views.put(key, viewOn(ctx, key));
             o.put("views", views).put("chip", chipOn(ctx)).put("rotation", rotationSec(ctx))
                     .put("cricket", Cricket.forHome(ctx)).put("cricket_rotation", Cricket.rotationSec(ctx))
-                    .put("cricket_together", Cricket.together(ctx));
+                    .put("cricket_together", Cricket.together(ctx))
+                    .put("topbar_hidden", new JSONArray(TopBar.hidden(ctx)));
         } catch (JSONException e) {
             return "{\"status\":\"none\"}";
         }

@@ -72,7 +72,7 @@ Each has a free tier, and they only need the ones for the extras they chose.
 |---|---|---|---|
 | IMDb ratings | OMDb API key | [omdbapi.com/apikey.aspx](https://www.omdbapi.com/apikey.aspx) | Only new catalogue titles get IMDb's rating; app tiles have none |
 | New releases, genres, search, title logos, Read more | TMDB API Read Access Token | [themoviedb.org/settings/api](https://www.themoviedb.org/settings/api) | The header uses JustWatch and written titles; genres, search and Read more say they need TMDB |
-| Portfolio and market chip | Their INDmoney sign-in | `python3 my-tv/indmoney-signin.py` (INDmoney's own page) | The chip stays hidden |
+| Portfolio and market chip | Their INDmoney sign-in | On the TV: Apps → Feed → Connections → Portfolio & markets (remote or phone typing); or `python3 my-tv/indmoney-signin.py` | The chip stays hidden |
 | A second news source | TheNewsAPI token | [thenewsapi.com](https://www.thenewsapi.com/) | Google News alone, which needs no key |
 
 Every missing or refused key is reported where it matters (the Feed screen, the Read more popup, the Ambient News
