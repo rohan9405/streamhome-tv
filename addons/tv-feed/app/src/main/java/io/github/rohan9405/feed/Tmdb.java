@@ -52,6 +52,11 @@ final class Tmdb {
         String overview = "";
         String backdrop = "";    // full image URL, 16:9
         double popularity;
+        /**
+         * JustWatch listed a season of it: a series it lists again whenever an episode arrives, so it only counts as new
+         * when that season itself premiered within the header's window.
+         */
+        boolean listedSeason;
         /** Its original language ("hi"); "" when not known yet. */
         String language = "";
         /** Search: the packages of the apps it streams on here, in TMDB's order. */

@@ -79,7 +79,7 @@ final class JustWatch {
             if (edges == null) return null;
             for (int i = 0; i < edges.length(); i++) {
                 Tmdb.Title t = title(edges.optJSONObject(i));
-                if (t == null || !Pick.recentEnough(t.released, "", today)) continue;
+                if (t == null || !isNew(t, today, days)) continue;
                 if (seen.add(t.kind + "|" + t.name.toLowerCase(java.util.Locale.ROOT) + "|" + t.season)) {
                     t.popularity = 10000 - out.size();   // JustWatch's own order, newest day first
                     out.add(t);
@@ -87,6 +87,15 @@ final class JustWatch {
             }
         }
         return out;
+    }
+
+    /**
+     * New enough for the header: a film or series first out within a year (it may only just have reached the service);
+     * a season only when it premiered within the window, so a weekly episode of a running season is not news.
+     */
+    static boolean isNew(Tmdb.Title t, LocalDate today, int days) {
+        if (!Pick.recentEnough(t.released, "", today)) return false;
+        return !t.listedSeason || !LocalDate.parse(t.released).isBefore(today.minusDays(days));
     }
 
     /** When the current twice-a-day turn began: today's 9 pm or 9 am if past, else yesterday's 9 pm (epoch ms). */
@@ -198,6 +207,7 @@ final class JustWatch {
             t.id = id(show != null ? show : content);
             // "Season 1" of a new series is the series itself; a later one is what makes it new.
             String season = "SHOW_SEASON".equals(type) ? content.optString("title") : "";
+            t.listedSeason = "SHOW_SEASON".equals(type);
             t.season = season.matches("Season ([2-9]|\\d\\d+)") ? season : "";
             if (backdrop.isEmpty() && show != null) backdrop = backdrop(show.optJSONArray("backdrops"));
         } else {
