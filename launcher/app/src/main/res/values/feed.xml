@@ -37,6 +37,8 @@
     <string name="watchlist_empty">Nothing here yet. Hold OK on a title and choose Add to watchlist.</string>
     <string name="watchlist_add">+ Add to watchlist</string>
     <string name="watchlist_remove">− Remove from watchlist</string>
+    <string name="watchlist_add_menu">Add to watchlist</string>
+    <string name="watchlist_remove_menu">Remove from watchlist</string>
     <string name="watchlist_added">Added to your watchlist</string>
     <string name="watchlist_removed">Removed from your watchlist</string>
     <string name="feed_refresh_rating">Refresh rating</string>

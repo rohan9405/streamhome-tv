@@ -70,8 +70,11 @@ final class FeedHome {
     private static final int IMDB_YELLOW = 0xFFF5C518;
     private static final int HERO_PER_APP = 5;
     private static final int HERO_TOTAL = 20;
-    /** With a drawer app focused, the header is that app's new releases only: its 5 best, then 10 drawn from the rest. */
-    private static final int HERO_ONE_APP = 15, HERO_ONE_BEST = 5;
+    /**
+     * With a drawer app focused, the header is that app's new releases only, as many as the Feed setting says (15 when an
+     * older add-on does not say): its best third always, the rest drawn from its other new titles.
+     */
+    private static final int HERO_ONE_APP = 15;
     /** Long enough that sweeping along the drawer does not turn the header at every app passed. */
     private static final long HERO_SWITCH_MS = 350;
     private static final int GRID_COLUMNS = 6;
@@ -429,7 +432,8 @@ final class FeedHome {
     private List<Feed.Entry> pickHeroes() {
         List<Feed.Entry> own = heroApp == null ? null : feed.heroCandidates().get(heroApp);
         if (own != null && !own.isEmpty()) {
-            return Feed.pickApp(own, HERO_ONE_APP, HERO_ONE_BEST, feed.refreshed() ^ heroApp.hashCode());
+            int count = feed.heroPerApp() > 0 ? feed.heroPerApp() : HERO_ONE_APP;
+            return Feed.pickApp(own, count, Math.max(2, count / 3), feed.refreshed() ^ heroApp.hashCode());
         }
         return Feed.pickHero(feed.heroCandidates(), drawer, HERO_PER_APP, HERO_TOTAL, feed.refreshed());
     }
@@ -1047,7 +1051,7 @@ final class FeedHome {
                     } else {
                         boolean kept = watchlist.contains(entry);
                         List<String> labels = new ArrayList<>(Arrays.asList("Mark as seen", "Read more",
-                                act.getString(kept ? R.string.watchlist_remove : R.string.watchlist_add), act.getString(R.string.feed_open)));
+                                act.getString(kept ? R.string.watchlist_remove_menu : R.string.watchlist_add_menu), act.getString(R.string.feed_open)));
                         List<Runnable> actions = new ArrayList<>(Arrays.asList(() -> markSeen(entry), () -> showDetails(entry),
                                 () -> toggleWatchlist(entry), () -> watch(entry)));
                         if (lastSeenEntry != null) {
@@ -1982,7 +1986,7 @@ final class FeedHome {
                 int pos = h.getBindingAdapterPosition();
                 if (pos == RecyclerView.NO_POSITION) return true;
                 Feed.Entry e = list.get(pos);
-                menu(v, e.title, new String[] {act.getString(R.string.watchlist_remove), "Read more"}, new Runnable[] {
+                menu(v, e.title, new String[] {act.getString(R.string.watchlist_remove_menu), "Read more"}, new Runnable[] {
                         () -> {
                             RecyclerView grid = (RecyclerView) cell.getParent();
                             watchlist.remove(e);
@@ -2391,31 +2395,38 @@ final class FeedHome {
         into.addView(line, lp);
     }
 
-    /** The watchlist button: green "+ Add to watchlist", or red "− Remove from watchlist" once the title is on it. */
+    /**
+     * The watchlist button. Unfocused it is an outline like the others, its words green ("+ Add to watchlist") or red
+     * ("− Remove from watchlist"); focused it fills with that colour. Only the focused button is ever filled, so none
+     * looks chosen.
+     */
     private void styleWatchlistButton(TextView b, boolean kept) {
         b.setText(act.getString(kept ? R.string.watchlist_remove : R.string.watchlist_add));
-        int colour = kept ? 0xFFEF4444 : 0xFF22C55E, soft = kept ? 0xFFFCA5A5 : 0xFF86EFAC;
+        int colour = kept ? 0xFFDC2626 : 0xFF16A34A, soft = kept ? 0xFFFCA5A5 : 0xFF86EFAC;
         View.OnFocusChangeListener paint = (v, has) -> {
-            GradientDrawable bg = rounded(has ? colour : (colour & 0x00FFFFFF) | 0x33000000, dp(18));
-            if (!has) bg.setStroke(Math.max(1, dp(1)), colour);
-            v.setBackground(bg);
+            v.setBackground(has ? rounded(colour, dp(18)) : outline());
             ((TextView) v).setTextColor(has ? Color.WHITE : soft);
         };
         b.setOnFocusChangeListener(paint);
         paint.onFocusChange(b, b.hasFocus());
     }
 
-    /** A pill like the header's: white with dark text when focused, glass otherwise. */
+    /** An unfocused Read more button: a thin light outline on nothing, so it never reads as switched on. */
+    private GradientDrawable outline() {
+        GradientDrawable bg = rounded(0x00000000, dp(18));
+        bg.setStroke(Math.max(1, dp(1)), 0x4DFFFFFF);
+        return bg;
+    }
+
+    /** A Read more button: an outline with light words, white with dark words when focused. */
     private TextView detailsButton(String label) {
         TextView b = text(14, Color.WHITE, medium);
         b.setText(label);
         b.setFocusable(true);
         b.setPadding(dp(18), dp(8), dp(18), dp(8));
         b.setOnFocusChangeListener((v, has) -> {
-            GradientDrawable bg = rounded(has ? 0xF2FFFFFF : 0x29FFFFFF, dp(18));
-            if (!has) bg.setStroke(Math.max(1, dp(1) / 2), 0x40FFFFFF);
-            v.setBackground(bg);
-            ((TextView) v).setTextColor(has ? 0xFF0B0D12 : Color.WHITE);
+            v.setBackground(has ? rounded(0xF2FFFFFF, dp(18)) : outline());
+            ((TextView) v).setTextColor(has ? 0xFF0B0D12 : 0xD9FFFFFF);
         });
         b.getOnFocusChangeListener().onFocusChange(b, false);
         return b;

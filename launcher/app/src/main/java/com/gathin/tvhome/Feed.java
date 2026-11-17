@@ -134,6 +134,7 @@ final class Feed {
     private Map<String, List<Entry>> hero = Collections.emptyMap();
     private Map<String, List<Entry>> pool = Collections.emptyMap();
     private long refreshed;
+    private int heroPerApp;
 
     private Feed(Context ctx, String pkg, String authority, Handler main, Runnable onChange) {
         this.ctx = ctx;
@@ -310,6 +311,11 @@ final class Feed {
         return refreshed;
     }
 
+    /** The Feed setting: how many of a focused drawer app's titles turn in the header (0: an older add-on, unset). */
+    int heroPerApp() {
+        return heroPerApp;
+    }
+
     /** package -> its header candidates, best first. */
     Map<String, List<Entry>> heroCandidates() {
         return hero;
@@ -320,8 +326,10 @@ final class Feed {
             io.execute(() -> {
                 List<Entry> entries = new ArrayList<>();
                 long made;
+                int perApp;
                 try (Cursor c = ctx.getContentResolver().query(uri, COLUMNS, null, drawer, null)) {
                     made = c == null ? 0 : c.getExtras().getLong("refreshed");
+                    perApp = c == null ? 0 : c.getExtras().getInt("hero_per_app", 0);
                     // By name: the add-on may answer with its columns in its own order, or with more of them.
                     while (c != null && c.moveToNext()) {
                         entries.add(new Entry(s(c, "section"), s(c, "tab"), i(c, "row_order"), s(c, "title"),
@@ -349,6 +357,7 @@ final class Feed {
                     hero = byHero;
                     pool = byPool;
                     refreshed = made;
+                    heroPerApp = perApp;
                     onChange.run();
                 });
             });

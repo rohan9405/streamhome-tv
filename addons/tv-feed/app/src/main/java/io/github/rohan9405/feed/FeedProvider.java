@@ -124,6 +124,23 @@ public final class FeedProvider extends ContentProvider {
         ctx.getContentResolver().notifyChange(itemsUri(), null);
     }
 
+    /** The Feed screen's setting: at most this many of a focused drawer app's new titles turn in Home's header. */
+    static final int[] PER_APP_CHOICES = {5, 10, 15, 20, 25};
+
+    static int heroPerApp(android.content.Context ctx) {
+        return ctx.getSharedPreferences("header", android.content.Context.MODE_PRIVATE).getInt("per_app", 15);
+    }
+
+    /** The next choice after the current one, round from 25 to 5. */
+    static void nextHeroPerApp(android.content.Context ctx) {
+        int now = heroPerApp(ctx), next = PER_APP_CHOICES[0];
+        for (int i = 0; i < PER_APP_CHOICES.length; i++) {
+            if (PER_APP_CHOICES[i] == now) next = PER_APP_CHOICES[(i + 1) % PER_APP_CHOICES.length];
+        }
+        ctx.getSharedPreferences("header", android.content.Context.MODE_PRIVATE).edit().putInt("per_app", next).apply();
+        ctx.getContentResolver().notifyChange(itemsUri(), null);
+    }
+
     static Uri imageUri(String name) {
         return new Uri.Builder().scheme(ContentResolver.SCHEME_CONTENT).authority(AUTHORITY)
                 .appendPath("image").appendPath(name).build();
@@ -202,6 +219,7 @@ public final class FeedProvider extends ContentProvider {
         // When these rows were made: Home draws the header's picks from it, a new draw for each refresh.
         android.os.Bundle extras = new android.os.Bundle();
         extras.putLong("refreshed", s.refreshedMs);
+        extras.putInt("hero_per_app", heroPerApp(getContext()));
         c.setExtras(extras);
         return c;
     }

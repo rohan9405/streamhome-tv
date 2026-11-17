@@ -249,6 +249,12 @@ final class FeedSettingsUi {
         addCard(controls, "Title logos", "On: the title's own logo where TMDB has one. Off: the title written as text", () -> FeedProvider.logosOn(act) ? "On" : "Off", () -> {
             FeedProvider.setLogos(act, !FeedProvider.logosOn(act));
         }, 70, false);
+        LinearLayout perApp = row();
+        LinearLayout.LayoutParams plp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        plp.topMargin = dp(10);
+        page.addView(perApp, plp);
+        addCard(perApp, "Titles per app", "With an app selected in the favourites drawer, at most this many of its new titles turn in the header",
+                () -> String.valueOf(FeedProvider.heroPerApp(act)), () -> FeedProvider.nextHeroPerApp(act), 70, false);
         TextView group = text("LANGUAGES", 10, 0xFF8D9BB1, medium);
         group.setLetterSpacing(0.15f);
         group.setPadding(dp(2), dp(19), 0, dp(4));
