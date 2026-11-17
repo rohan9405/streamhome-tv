@@ -2631,10 +2631,16 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             }
         });
         topBarOrder = new TopBarOrder(this, findViewById(R.id.topButtons), this::showSettingsMenu, feed::hideTopBarButton);
-        // A shorter date beside the clock: "THU, 29 OCT".
+        // A small date beside the clock, the day over the date: "THU" then "29 OCT".
         android.widget.TextClock date = findViewById(R.id.date);
-        date.setFormat12Hour("EEE, d MMM");
-        date.setFormat24Hour("EEE, d MMM");
+        date.setFormat12Hour("EEE\nd MMM");
+        date.setFormat24Hour("EEE\nd MMM");
+        date.setSingleLine(false);
+        date.setMaxLines(2);
+        // Leaving single line drops the capitals the layout asked for.
+        date.setAllCaps(true);
+        date.setTextSize(12f);
+        date.setLineSpacing(2 * getResources().getDisplayMetrics().density, 1f);
         // Only while a refresh runs: "Refreshing · 40%", gone when it is done.
         TextView status = findViewById(R.id.feedStatus);
         feed.setStatusListener((progress, refreshed) -> {
