@@ -13,8 +13,9 @@ import java.util.Locale;
 
 /**
  * The owner's watchlist, kept on the TV by the launcher (which stays offline): films and series added from Read more,
- * newest first. A title is known by its TMDB id, or by its app and name when it has none. Its picture is the TMDB
- * address the Feed add-on fetches again when needed, so the list outlives the add-on clearing its picture cache.
+ * newest first. A title is known by its TMDB id, or by its app and name when it has none. Its picture is kept here
+ * too, the first time it is shown: the Feed add-on clears its own pictures as its rows change, and need not be asked
+ * again for a title already on the list.
  */
 final class Watchlist {
     /** The watchlist's tile among the apps: not a package on the TV, so Home opens the watchlist itself. */
@@ -22,9 +23,28 @@ final class Watchlist {
     private static final String ITEMS = "items";
 
     private final SharedPreferences prefs;
+    private final java.io.File pictures;
 
     Watchlist(Context ctx) {
         prefs = ctx.getSharedPreferences("watchlist", Context.MODE_PRIVATE);
+        pictures = new java.io.File(ctx.getFilesDir(), "watchlist");
+    }
+
+    /** Where this title's card picture is kept (it may not be yet). */
+    java.io.File picture(Feed.Entry e) {
+        return new java.io.File(pictures, pictureName(key(e)));
+    }
+
+    /** A file name for a key: TMDB ids and app names hold characters a file name should not. */
+    static String pictureName(String key) {
+        try {
+            byte[] d = java.security.MessageDigest.getInstance("SHA-1").digest(key.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            StringBuilder b = new StringBuilder();
+            for (int i = 0; i < 10; i++) b.append(String.format(Locale.ROOT, "%02x", d[i]));
+            return b.append(".jpg").toString();
+        } catch (java.security.NoSuchAlgorithmException never) {
+            throw new IllegalStateException(never);
+        }
     }
 
     static String key(Feed.Entry e) {
@@ -64,6 +84,8 @@ final class Watchlist {
 
     void remove(Feed.Entry e) {
         save(without(items(), key(e)));
+        //noinspection ResultOfMethodCallIgnored
+        picture(e).delete();
     }
 
     /** Series or films, the latest added first. */

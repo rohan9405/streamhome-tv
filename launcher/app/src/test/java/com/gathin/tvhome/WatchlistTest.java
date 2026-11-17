@@ -68,4 +68,13 @@ public class WatchlistTest {
         assertEquals("34k", Feed.votes("34567"));
         assertEquals("1.2M", Feed.votes("1234567"));
     }
+
+    @org.junit.Test
+    public void pictureNamesAreSafeAndStable() {
+        String a = Watchlist.pictureName("tv:12345"), b = Watchlist.pictureName("com.netflix.ninja|the crown");
+        org.junit.Assert.assertTrue(a.matches("[0-9a-f]{20}\\.jpg"));
+        org.junit.Assert.assertTrue(b.matches("[0-9a-f]{20}\\.jpg"));
+        org.junit.Assert.assertEquals(a, Watchlist.pictureName("tv:12345"));
+        org.junit.Assert.assertNotEquals(a, b);
+    }
 }

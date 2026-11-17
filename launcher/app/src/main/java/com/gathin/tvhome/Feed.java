@@ -805,6 +805,56 @@ final class Feed {
         }
     }
 
+    /** A picture Home keeps itself (the watchlist's), decoded off the main thread; null when there is none yet. */
+    void loadKept(java.io.File f, int widthPx, Consumer<Bitmap> onLoaded) {
+        String key = "file:" + f.getName() + "@" + widthPx;
+        Bitmap cached = art.get(key);
+        if (cached != null) {
+            onLoaded.accept(cached);
+            return;
+        }
+        try {
+            io.execute(() -> {
+                Bitmap b = null;
+                if (f.isFile()) {
+                    BitmapFactory.Options o = new BitmapFactory.Options();
+                    o.inPreferredConfig = Bitmap.Config.RGB_565;
+                    b = BitmapFactory.decodeFile(f.getPath(), o);
+                }
+                Bitmap found = b;
+                main.post(() -> {
+                    if (found != null) art.put(key, found);
+                    onLoaded.accept(found);
+                });
+            });
+        } catch (RejectedExecutionException shutDown) {
+            onLoaded.accept(null);
+        }
+    }
+
+    /** Writes a picture Home keeps itself, through a temporary file so a half-written one is never read. */
+    void keep(java.io.File f, Bitmap b) {
+        if (b == null) return;
+        try {
+            io.execute(() -> {
+                java.io.File dir = f.getParentFile();
+                if (dir != null && !dir.isDirectory() && !dir.mkdirs()) return;
+                java.io.File tmp = new java.io.File(f.getPath() + ".tmp");
+                try (java.io.FileOutputStream out = new java.io.FileOutputStream(tmp)) {
+                    if (!b.compress(Bitmap.CompressFormat.JPEG, 88, out)) return;
+                } catch (java.io.IOException failed) {
+                    //noinspection ResultOfMethodCallIgnored
+                    tmp.delete();
+                    return;
+                }
+                //noinspection ResultOfMethodCallIgnored
+                tmp.renameTo(f);
+            });
+        } catch (RejectedExecutionException shutDown) {
+            // Home is being destroyed; the next time the watchlist shows the card, it is kept then.
+        }
+    }
+
     /** A title's logo, with its transparency; onLoaded on the main thread, null when none. */
     void loadLogo(String source, int widthPx, Consumer<Bitmap> onLoaded) {
         load(source, widthPx, Bitmap.Config.ARGB_8888, onLoaded);

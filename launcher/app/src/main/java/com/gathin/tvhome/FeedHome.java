@@ -1707,7 +1707,10 @@ final class FeedHome {
         keep.setOnClickListener(v -> {
             boolean had = watchlist.contains(e);
             if (had) watchlist.remove(e);
-            else watchlist.add(e, got[0] == null ? "" : got[0].getOrDefault("backdrop", ""), shownRating(e, got[0]));
+            else {
+                watchlist.add(e, got[0] == null ? "" : got[0].getOrDefault("backdrop", ""), shownRating(e, got[0]));
+                keepWatchlistPicture(e);
+            }
             styleWatchlistButton(keep, !had);
             Toast.makeText(act, had ? R.string.watchlist_removed : R.string.watchlist_added, Toast.LENGTH_SHORT).show();
         });
@@ -1804,6 +1807,36 @@ final class FeedHome {
     // ---- watchlist ----------------------------------------------------------------------------------------
 
     /**
+     * A watchlist card's picture: the copy Home keeps, or the first time, the add-on's, which is then kept. Only when
+     * neither is there is the add-on asked again (and the copy made then).
+     */
+    private void watchlistPicture(Feed.Entry e, java.util.function.Consumer<Bitmap> shown) {
+        java.io.File f = watchlist.picture(e);
+        int w = dp(TILE_W);
+        feed.loadKept(f, w, kept -> {
+            if (kept != null) {
+                shown.accept(kept);
+                return;
+            }
+            java.util.function.Consumer<Bitmap> fetched = b -> {
+                if (b != null && watchlist.contains(e)) feed.keep(f, b);
+                shown.accept(b);
+            };
+            if (!e.artSource.isEmpty()) feed.art(e, w, fetched);
+            else feed.loadArt(!e.poster.isEmpty() ? e.poster : e.backdrop, w, fetched);
+        });
+    }
+
+    /** Just added: its picture is kept now, while the add-on still has the card's. */
+    private void keepWatchlistPicture(Feed.Entry e) {
+        Feed.Entry saved = null;
+        for (Feed.Entry w : watchlist.list(Watchlist.series(Watchlist.toJson(e, "", 0)))) {
+            if (Watchlist.key(w).equals(Watchlist.key(e))) saved = w;
+        }
+        if (saved != null) watchlistPicture(saved, b -> { });
+    }
+
+    /**
      * Add to or remove from the watchlist straight from a card. Adding asks the add-on for the title's TMDB picture
      * first, so the watchlist card keeps a picture after the add-on clears its cache; without one, the card's own.
      */
@@ -1815,12 +1848,14 @@ final class FeedHome {
         }
         if (e.tmdb.isEmpty()) {
             watchlist.add(e, "", e.rating);
+            keepWatchlistPicture(e);
             Toast.makeText(act, R.string.watchlist_added, Toast.LENGTH_SHORT).show();
             return;
         }
         feed.details(e.tmdb, e.title, e.year, false, d -> {
             boolean got = d != null && !d.containsKey("error");
             watchlist.add(e, got ? d.getOrDefault("backdrop", "") : "", got ? shownRating(e, d) : e.rating);
+            keepWatchlistPicture(e);
             Toast.makeText(act, R.string.watchlist_added, Toast.LENGTH_SHORT).show();
         });
     }
@@ -2050,8 +2085,7 @@ final class FeedHome {
                 // Apps' posters carry their own title; TMDB pictures do not.
                 if (!e.plainArt()) h.title.setVisibility(View.GONE);
             };
-            if (!e.artSource.isEmpty()) feed.art(e, dp(TILE_W), shown);
-            else feed.loadArt(!e.poster.isEmpty() ? e.poster : e.backdrop, dp(TILE_W), shown);
+            watchlistPicture(e, shown);
         }
 
         @Override
