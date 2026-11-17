@@ -1865,6 +1865,8 @@ final class FeedHome {
      * holding OK offers Remove from watchlist and Read more.
      */
     void openWatchlist() {
+        // Pictures of removed titles, and the oldest beyond the cap, go before the cards are drawn.
+        new Thread(watchlist::tidy, "watchlist-tidy").start();
         Dialog dialog = new Dialog(act, android.R.style.Theme_Black_NoTitleBar_Fullscreen);
         LinearLayout page = column();
         page.setClipChildren(false);

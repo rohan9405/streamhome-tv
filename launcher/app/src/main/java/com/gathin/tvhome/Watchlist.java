@@ -35,6 +35,49 @@ final class Watchlist {
         return new java.io.File(pictures, pictureName(key(e)));
     }
 
+    /** At most this much of the TV's storage goes to watchlist pictures (some 250 cards). */
+    static final long PICTURES_MAX_BYTES = 10L * 1024 * 1024;
+
+    /**
+     * Deletes the pictures of titles no longer on the list (and any half-written file), then, while the rest come to
+     * more than {@link #PICTURES_MAX_BYTES}, those of the titles added longest ago: such a card fetches its picture again
+     * when shown. Off the main thread: it lists files.
+     */
+    void tidy() {
+        java.io.File[] files = pictures.listFiles();
+        if (files == null) return;
+        JSONArray items = items();
+        // Newest first: the oldest are the last kept.
+        List<JSONObject> byAdded = new ArrayList<>();
+        for (int i = 0; i < items.length(); i++) if (items.optJSONObject(i) != null) byAdded.add(items.optJSONObject(i));
+        byAdded.sort((a, b) -> Long.compare(b.optLong("added"), a.optLong("added")));
+        List<String> order = new ArrayList<>();
+        for (JSONObject o : byAdded) order.add(pictureName(o.optString("key")));
+        java.util.Map<String, java.io.File> found = new java.util.HashMap<>();
+        for (java.io.File f : files) {
+            if (order.contains(f.getName())) found.put(f.getName(), f);
+            else //noinspection ResultOfMethodCallIgnored
+                f.delete();
+        }
+        for (String name : keepWithin(order, found, PICTURES_MAX_BYTES)) {
+            //noinspection ResultOfMethodCallIgnored
+            found.get(name).delete();
+        }
+    }
+
+    /** The pictures to delete so the rest fit in max bytes: the newest titles' are kept first. */
+    static List<String> keepWithin(List<String> newestFirst, java.util.Map<String, java.io.File> files, long max) {
+        List<String> drop = new ArrayList<>();
+        long used = 0;
+        for (String name : newestFirst) {
+            java.io.File f = files.get(name);
+            if (f == null) continue;
+            used += f.length();
+            if (used > max) drop.add(name);
+        }
+        return drop;
+    }
+
     /** A file name for a key: TMDB ids and app names hold characters a file name should not. */
     static String pictureName(String key) {
         try {

@@ -77,4 +77,20 @@ public class WatchlistTest {
         org.junit.Assert.assertEquals(a, Watchlist.pictureName("tv:12345"));
         org.junit.Assert.assertNotEquals(a, b);
     }
+
+    @org.junit.Test
+    public void theOldestPicturesGoFirstPastTheCap() throws java.io.IOException {
+        java.io.File dir = java.nio.file.Files.createTempDirectory("wl").toFile();
+        java.util.Map<String, java.io.File> files = new java.util.HashMap<>();
+        for (String n : new String[] {"new.jpg", "mid.jpg", "old.jpg"}) {
+            java.io.File f = new java.io.File(dir, n);
+            java.nio.file.Files.write(f.toPath(), new byte[40]);
+            files.put(n, f);
+        }
+        // "gone.jpg" has no file: it takes no room.
+        assertEquals(java.util.Arrays.asList("old.jpg"),
+                Watchlist.keepWithin(java.util.Arrays.asList("new.jpg", "gone.jpg", "mid.jpg", "old.jpg"), files, 100));
+        assertEquals(java.util.Collections.emptyList(),
+                Watchlist.keepWithin(java.util.Arrays.asList("new.jpg", "mid.jpg", "old.jpg"), files, 120));
+    }
 }
